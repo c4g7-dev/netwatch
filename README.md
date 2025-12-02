@@ -1,4 +1,4 @@
-# 🚀 NetWatch - Self-Hosted Network Performance Monitor
+# 🚀 NetWatch - Self-Hosted Network Monitor
 
 <p align="center">
   <img src="assets/img1.png" alt="NetWatch Dashboard" width="100%">
