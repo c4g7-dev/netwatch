@@ -4,10 +4,6 @@ paths:
   logs_dir: logs
   bin_dir: bin
 
-scheduler:
-  enabled: true
-  interval_minutes: 30
-
 ookla:
   auto_download: true
   binary_name: speedtest

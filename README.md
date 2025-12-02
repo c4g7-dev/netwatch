@@ -210,32 +210,25 @@ netwatch/
 Edit `config.yaml` to customize NetWatch:
 
 ```yaml
-# Scheduler Configuration
-scheduler:
-  enabled: true
-  interval_minutes: 30
-
-# Measurement Settings
-measurements:
-  auto_download_ookla: true
-  speedtest_timeout: 60
-  bufferbloat_timeout: 120
-
 # Server Configuration
-server:
+web:
   host: "0.0.0.0"
   port: 8000
-  debug: false
 
-# Database
-database:
-  path: "data/metrics.db"
+# Measurement Settings
+ookla:
+  auto_download: true
+
+bufferbloat:
+  iperf_server: iperf3.example.net
+  iperf_port: 5201
 
 # Logging
 logging:
   level: "INFO"
-  path: "logs/netwatch.log"
 ```
+
+> **Note:** Scheduling is now configured through the dashboard UI. Click the ⚙️ button next to the scheduler status to configure measurement intervals and time windows.
 
 ## 🔧 Advanced Usage
 

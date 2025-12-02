@@ -199,15 +199,14 @@ sudo systemctl restart netwatch
 ## 📊 Performance Tuning
 
 ### Adjust measurement interval
-```bash
-sudo nano /opt/netwatch/config.yaml
-```
-Change:
-```yaml
-scheduler:
-  enabled: true
-  interval_minutes: 15  # Run every 15 minutes
-```
+Measurement scheduling is now configured through the **dashboard UI**:
+
+1. Open NetWatch at http://localhost:8000
+2. Click the ⚙️ button next to the scheduler status
+3. Choose your scheduling mode:
+   - **Simple:** 24/7 with fixed interval (5-120 min)
+   - **Weekly:** Select specific days and time windows
+   - **Advanced:** Configure multiple time slots per day
 
 ### Limit log size
 ```bash
