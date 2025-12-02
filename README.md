@@ -1,6 +1,10 @@
 # 🚀 NetWatch - Self-Hosted Network Performance Monitor
 
 <p align="center">
+  <img src="assets/img1.png" alt="NetWatch Dashboard" width="100%">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/Flask-3.0+-green.svg" alt="Flask">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
@@ -41,7 +45,14 @@ A beautiful, self-hosted network performance monitoring dashboard with real-time
 - **Toast Notifications** - Real-time feedback for user actions
 - **Animated Metrics** - Count-up animations and progress bars
 
-## 🚀 Quick Start
+## � Screenshots
+
+<p align="center">
+  <img src="assets/img1.png" alt="NetWatch Dashboard - Main View" width="49%">
+  <img src="assets/img2.png" alt="NetWatch Dashboard - Charts" width="49%">
+</p>
+
+## �🚀 Quick Start
 
 ### Prerequisites
 - Python 3.10 or higher
