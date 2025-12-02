@@ -75,6 +75,8 @@ cd netwatch
 sudo bash install-linux.sh
 ```
 
+**📖 [Full Linux Setup Guide →](LINUX-GUIDE.md)** - Service management, firewall, troubleshooting, and more
+
 The installer will:
 - ✅ Install system dependencies (python3-venv, iperf3)
 - ✅ Create dedicated `netwatch` user
