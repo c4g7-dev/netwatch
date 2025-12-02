@@ -52,33 +52,58 @@ A beautiful, self-hosted network performance monitoring dashboard with real-time
   <img src="assets/img2.png" alt="NetWatch Dashboard - Charts" width="49%">
 </p>
 
-## �🚀 Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 - Python 3.10 or higher
 - pip (Python package manager)
 - Internet connection (for Ookla binary download)
+- **Linux only:** iperf3 (for bufferbloat tests)
 
 ### Installation
 
-#### Option 1: Automated Installer (Recommended)
+#### 🐧 Linux - Automated Installation (Recommended)
+
+Install NetWatch as a **systemd service** for production use:
+
 ```bash
 # Clone the repository
 git clone https://github.com/c4g7-dev/netwatch.git
 cd netwatch
 
-# Run the installer
-python installer.py
+# Run the Linux installer (requires sudo)
+sudo bash install-linux.sh
 ```
 
 The installer will:
-- ✅ Create virtual environment
-- ✅ Install Python dependencies
+- ✅ Install system dependencies (python3-venv, iperf3)
+- ✅ Create dedicated `netwatch` user
+- ✅ Install to `/opt/netwatch`
+- ✅ Set up Python virtual environment
 - ✅ Download Ookla Speedtest CLI binary
-- ✅ Initialize SQLite database
-- ✅ Create folder structure
+- ✅ Configure systemd service
+- ✅ Start NetWatch automatically
 
-#### Option 2: Manual Installation
+**Service Management:**
+```bash
+# Check status
+systemctl status netwatch
+
+# View live logs
+journalctl -u netwatch -f
+
+# Restart service
+sudo systemctl restart netwatch
+
+# Stop service
+sudo systemctl stop netwatch
+
+# Disable auto-start
+sudo systemctl disable netwatch
+```
+
+#### 🪟 Windows / 💻 Manual Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/c4g7-dev/netwatch.git
@@ -96,14 +121,21 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the application
+# Run the installer
+python installer.py
+
+# Start the application
 python main.py
 ```
 
 ### 🏃 Running NetWatch
 
+#### Production (Linux with systemd)
+NetWatch runs automatically as a service. Access at: **http://your-server-ip:8000**
+
+#### Development / Windows
 ```bash
-# Activate virtual environment (if not already activated)
+# Activate virtual environment
 # Windows:
 .venv\Scripts\activate
 # Linux/macOS:
@@ -114,6 +146,21 @@ python main.py
 ```
 
 The dashboard will be available at: **http://localhost:8000**
+
+### 🔒 Linux Firewall Configuration
+
+```bash
+# UFW (Ubuntu/Debian)
+sudo ufw allow 8000/tcp
+
+# firewalld (CentOS/RHEL/Fedora)
+sudo firewall-cmd --permanent --add-port=8000/tcp
+sudo firewall-cmd --reload
+
+# iptables
+sudo iptables -A INPUT -p tcp --dport 8000 -j ACCEPT
+sudo iptables-save
+```
 
 ## 📁 Project Structure
 
@@ -173,6 +220,23 @@ logging:
 
 ## 🔧 Advanced Usage
 
+### 🐧 Linux Cron Jobs (Alternative to systemd)
+
+If you prefer cron over systemd:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line to run speedtest every 30 minutes
+*/30 * * * * /opt/netwatch/.venv/bin/python /opt/netwatch/main.py --run-once >> /opt/netwatch/logs/cron.log 2>&1
+
+# Or run the Flask server in the background (not recommended)
+@reboot cd /opt/netwatch && /opt/netwatch/.venv/bin/python main.py >> /opt/netwatch/logs/app.log 2>&1 &
+```
+
+**Note:** Using systemd is recommended over cron for better process management, automatic restarts, and proper logging.
+
 ### Manual Test Triggers
 
 **Via Dashboard:**
@@ -210,15 +274,26 @@ curl "http://localhost:8000/api/export/csv?start=2025-12-01T00:00:00Z&end=2025-1
 | `/api/status` | GET | System status and configuration |
 | `/api/summary/latest` | GET | Latest measurement with delta |
 | `/api/measurements` | GET | Historical measurements (supports filtering) |
-| `/api/manual/speedtest` | POST | Trigger manual speedtest |
-| `/api/manual/bufferbloat` | POST | Trigger manual bufferbloat test |
-| `/api/export/csv` | GET | Export data to CSV |
-
-## 🐳 Docker Deployment (Coming Soon)
-
+| `/Linux (systemd service)
 ```bash
-docker run -d \
-  --name netwatch \
+cd /opt/netwatch
+sudo systemctl stop netwatch
+sudo -u netwatch git pull origin master
+sudo -u netwatch .venv/bin/pip install -r requirements.txt --upgrade
+sudo systemctl start netwatch
+```
+
+### Windows / Manual Installation
+```bash
+cd netwatch
+git pull origin master
+.venv\Scripts\activate  # or: source .venv/bin/activate
+pip install -r requirements.txt --upgrade
+```
+
+### Update Ookla Binary
+```bash
+python updater.py --component speedtest
   -p 8000:8000 \
   -v ./data:/app/data \
   -v ./config.yaml:/app/config.yaml \
@@ -240,21 +315,60 @@ pip install -r requirements.txt --upgrade
 
 ## 🛠️ Troubleshooting
 
-### Speedtest Not Working
-- **Issue:** Ookla binary download failed
-- **Solution:** Manually download from [speedtest.net/apps/cli](https://www.speedtest.net/apps/cli) and place in `bin/` folder
-
-### Bufferbloat Tests Failing
-- **Issue:** iperf3 not found
-- **Solution:** 
-  ```bash
-  # Ubuntu/Debian
-  sudo apt-get install iperf3
+### CentOS/RHEL/Fedora
+  sudo dnf install iperf3
+  
+  # Arch Linux
+  sudo pacman -S iperf3
   
   # Windows
   # Download from https://iperf.fr/iperf-download.php
   # Place iperf3.exe in bin/ folder
   
+  # macOS
+  brew install iperf3
+  ```
+
+### Database Locked Errors
+- **Issue:** SQLite database locked
+- **Solution:** Ensure only one instance of NetWatch is running
+
+### Port Already in Use
+- **Issue:** Port 8000 is occupied
+- **Solution:** Change port in `config.yaml` or stop conflicting service
+  ```bash
+  # Linux - Find process using port 8000
+  sudo lsof -i :8000
+  sudo netstat -tulpn | grep :8000
+  
+  # Windows
+  netstat -ano | findstr :8000
+  ```
+
+### Permission Denied (Linux)
+- **Issue:** Cannot access files or bind to port
+- **Solution:** 
+  ```bash
+  # Check file ownership
+  sudo chown -R netwatch:netwatch /opt/netwatch
+  
+  # If binding to port < 1024, use setcap
+  sudo setcap 'cap_net_bind_service=+ep' /opt/netwatch/.venv/bin/python3
+  ```
+
+### Service Won't Start (Linux)
+- **Issue:** systemd service fails to start
+- **Solution:**
+  ```bash
+  # Check service status
+  systemctl status netwatch
+  
+  # View detailed logs
+  journalctl -u netwatch -n 100 --no-pager
+  
+  # Test manual start
+  sudo -u netwatch /opt/netwatch/.venv/bin/python /opt/netwatch/main.py
+  ```
   # macOS
   brew install iperf3
   ```
