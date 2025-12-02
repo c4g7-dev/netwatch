@@ -658,10 +658,189 @@ function attachEvents() {
 }
 
 // ============================================================================
+// Scheduler Configuration Modal
+// ============================================================================
+function initSchedulerModal() {
+  const modal = document.getElementById('scheduler-modal');
+  const openBtn = document.getElementById('open-scheduler-config');
+  const closeBtn = document.getElementById('close-scheduler-modal');
+  const cancelBtn = document.getElementById('cancel-scheduler');
+  const saveBtn = document.getElementById('save-scheduler');
+  
+  // Mode switching
+  const modeBtns = document.querySelectorAll('.mode-btn');
+  const panels = document.querySelectorAll('.scheduler-panel');
+  
+  modeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      
+      modeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      panels.forEach(p => p.classList.remove('active'));
+      document.getElementById(`${mode}-panel`).classList.add('active');
+    });
+  });
+  
+  // Simple mode - sync slider and number input
+  const intervalSlider = document.getElementById('interval-minutes');
+  const intervalValue = document.getElementById('interval-minutes-value');
+  
+  if (intervalSlider && intervalValue) {
+    intervalSlider.addEventListener('input', () => {
+      intervalValue.value = intervalSlider.value;
+    });
+    
+    intervalValue.addEventListener('input', () => {
+      intervalSlider.value = intervalValue.value;
+    });
+  }
+  
+  // Weekly mode - sync slider and number input
+  const weeklySlider = document.getElementById('weekly-interval');
+  const weeklyValue = document.getElementById('weekly-interval-value');
+  
+  if (weeklySlider && weeklyValue) {
+    weeklySlider.addEventListener('input', () => {
+      weeklyValue.value = weeklySlider.value;
+    });
+    
+    weeklyValue.addEventListener('input', () => {
+      weeklySlider.value = weeklyValue.value;
+    });
+  }
+  
+  // Advanced mode - disable inputs when day is unchecked
+  document.querySelectorAll('.day-toggle').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      const daySchedule = toggle.closest('.day-schedule');
+      const inputs = daySchedule.querySelectorAll('.day-config input');
+      inputs.forEach(input => {
+        input.disabled = !toggle.checked;
+      });
+    });
+    
+    // Initial state
+    const daySchedule = toggle.closest('.day-schedule');
+    const inputs = daySchedule.querySelectorAll('.day-config input');
+    inputs.forEach(input => {
+      input.disabled = !toggle.checked;
+    });
+  });
+  
+  // Open modal
+  openBtn?.addEventListener('click', () => {
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  });
+  
+  // Close modal
+  const closeModal = () => {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  };
+  
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  
+  // Close on backdrop click
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+  
+  // Close on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('active')) {
+      closeModal();
+    }
+  });
+  
+  // Save configuration
+  saveBtn?.addEventListener('click', async () => {
+    const activeMode = document.querySelector('.mode-btn.active')?.dataset.mode || 'simple';
+    
+    let config = { mode: activeMode };
+    
+    if (activeMode === 'simple') {
+      config.enabled = document.getElementById('scheduler-enabled').checked;
+      config.interval = parseInt(intervalValue.value);
+    } else if (activeMode === 'weekly') {
+      const selectedDays = [];
+      document.querySelectorAll('.weekday-selector input[type="checkbox"]:checked').forEach(cb => {
+        selectedDays.push(parseInt(cb.value));
+      });
+      
+      config.days = selectedDays;
+      config.startTime = document.getElementById('start-time').value;
+      config.endTime = document.getElementById('end-time').value;
+      config.interval = parseInt(weeklyValue.value);
+    } else if (activeMode === 'advanced') {
+      config.schedule = {};
+      
+      document.querySelectorAll('.day-toggle:checked').forEach(toggle => {
+        const day = toggle.dataset.day;
+        const daySchedule = toggle.closest('.day-schedule');
+        const inputs = daySchedule.querySelectorAll('.day-config input');
+        
+        config.schedule[day] = {
+          startTime: inputs[0].value,
+          endTime: inputs[1].value,
+          interval: parseInt(inputs[2].value)
+        };
+      });
+    }
+    
+    // Save to localStorage for now (in production, send to backend)
+    localStorage.setItem('schedulerConfig', JSON.stringify(config));
+    
+    showToast(`Scheduler configured in ${activeMode} mode!`, 'success');
+    closeModal();
+    
+    // Update status pill
+    updateSchedulerStatus(config);
+  });
+}
+
+function updateSchedulerStatus(config) {
+  const statusPill = document.querySelector('.status-pill span:last-child');
+  if (!statusPill) return;
+  
+  if (config.mode === 'simple') {
+    const status = config.enabled ? 'Active' : 'Inactive';
+    statusPill.textContent = `Scheduler: ${status} · ${config.interval}min interval`;
+  } else if (config.mode === 'weekly') {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days = config.days.map(d => dayNames[d]).join(', ');
+    statusPill.textContent = `Scheduler: Weekly · ${days} · ${config.startTime}-${config.endTime} · ${config.interval}min`;
+  } else if (config.mode === 'advanced') {
+    const activeDays = Object.keys(config.schedule).length;
+    statusPill.textContent = `Scheduler: Advanced · ${activeDays} days configured`;
+  }
+}
+
+// Load saved scheduler config on startup
+function loadSchedulerConfig() {
+  try {
+    const saved = localStorage.getItem('schedulerConfig');
+    if (saved) {
+      const config = JSON.parse(saved);
+      updateSchedulerStatus(config);
+    }
+  } catch (error) {
+    console.error('Failed to load scheduler config:', error);
+  }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 async function init() {
   attachEvents();
+  initSchedulerModal();
+  loadSchedulerConfig();
   
   try {
     await refreshSummary();
