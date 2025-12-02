@@ -1,0 +1,47 @@
+# Application configuration for the network performance monitor
+paths:
+  data_dir: data
+  logs_dir: logs
+  bin_dir: bin
+
+scheduler:
+  enabled: true
+  interval_minutes: 30
+
+ookla:
+  auto_download: true
+  binary_name: speedtest
+  # Platform-specific download URLs can be overridden here.
+  urls:
+    windows_x86_64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-win64.zip
+    linux_x86_64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-x86_64.tgz
+    linux_aarch64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-aarch64.tgz
+    darwin_x86_64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-macosx-universal.tgz
+    darwin_arm64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-macosx-universal.tgz
+
+speedtest:
+  preferred: ookla
+  fallback_module: speedtest
+  server_id: null
+  extra_args: []
+
+bufferbloat:
+  iperf_server: iperf3.example.net
+  iperf_port: 5201
+  download_duration: 15
+  upload_duration: 15
+  parallel_streams: 4
+  ping_host: 1.1.1.1
+  ping_count: 20
+
+web:
+  host: 0.0.0.0
+  port: 8000
+  secret_key: change-me
+  reverse_proxy_headers: false
+
+export:
+  csv_name: results.csv
+
+logging:
+  level: INFO

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Network Performance Dashboard - Monitor your internet speed, latency, and bufferbloat metrics" />
+  <title>Network Performance Dashboard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2" />
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo-section">
+        <div class="logo-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </div>
+        <h1>Network Performance</h1>
+      </div>
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span>Scheduler: {{ 'Active' if config.scheduler.enabled else 'Inactive' }} · {{ config.scheduler.interval_minutes }}min interval</span>
+      </div>
+    </header>
+
+    <!-- Controls -->
+    <section class="controls glass-card">
+      <div class="controls-inner">
+        <!-- Time Range Filters -->
+        <div class="filter-group">
+          <button class="filter-btn active" data-range="24h">24h</button>
+          <button class="filter-btn" data-range="7d">7d</button>
+          <button class="filter-btn" data-range="30d">30d</button>
+          <button class="filter-btn" data-range="custom">Custom</button>
+        </div>
+
+        <!-- Date/Time Inputs -->
+        <div class="datetime-group">
+          <div class="datetime-input">
+            <label for="range-start">From</label>
+            <input type="datetime-local" id="range-start" />
+          </div>
+          <div class="datetime-input">
+            <label for="range-end">To</label>
+            <input type="datetime-local" id="range-end" />
+          </div>
+        </div>
+
+        <!-- Timeline Slider -->
+        <div class="slider-group">
+          <div class="slider-label">
+            <span>Timeline</span>
+            <span class="slider-value" id="slider-value">100%</span>
+          </div>
+          <input type="range" id="time-slider" min="0" max="100" value="100" />
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-group">
+          <button class="action-btn" id="trigger-speedtest">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+            </svg>
+            Speedtest
+          </button>
+          <button class="action-btn" id="trigger-bufferbloat">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+            Bufferbloat
+          </button>
+          <button class="action-btn primary" id="export-csv">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Metrics Grid -->
+    <section class="metrics-grid" id="metrics-grid">
+      <!-- Download Speed -->
+      <div class="metric-card glass-card download">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Download</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="download-value">—</span>
+            <span class="metric-unit">Mbps</span>
+          </div>
+          <span class="metric-delta neutral" id="download-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="download-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="download-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload Speed -->
+      <div class="metric-card glass-card upload">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Upload</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="upload-value">—</span>
+            <span class="metric-unit">Mbps</span>
+          </div>
+          <span class="metric-delta neutral" id="upload-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="upload-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="upload-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ping (Idle) -->
+      <div class="metric-card glass-card ping">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Ping (Idle)</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="ping-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="ping-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="ping-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="ping-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Jitter -->
+      <div class="metric-card glass-card jitter">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Jitter</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="jitter-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="jitter-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="jitter-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="jitter-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ping Under Download -->
+      <div class="metric-card glass-card latency-down">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Ping (Download)</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="ping-down-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="ping-down-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="ping-down-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="ping-down-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ping Under Upload -->
+      <div class="metric-card glass-card latency-up">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Ping (Upload)</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="ping-up-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="ping-up-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="ping-up-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="ping-up-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Download Latency -->
+      <div class="metric-card glass-card download-latency">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Download Latency</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="dl-latency-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="dl-latency-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="dl-latency-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="dl-latency-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload Latency -->
+      <div class="metric-card glass-card upload-latency">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Upload Latency</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="ul-latency-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="ul-latency-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="ul-latency-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="ul-latency-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts Section -->
+    <section class="charts-section">
+      <div class="section-header">
+        <h2 class="section-title">Performance Trends</h2>
+      </div>
+      <div class="charts-grid">
+        <!-- Download Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot cyan"></span>
+              Download Speed
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="download-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Upload Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot blue"></span>
+              Upload Speed
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="upload-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Ping Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot multi"></span>
+              Latency Overview
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="ping-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Jitter Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot purple"></span>
+              Jitter & Bufferbloat
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="jitter-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Table -->
+    <section class="table-section glass-card">
+      <div class="table-header">
+        <h2 class="table-title">Measurement History</h2>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Type</th>
+              <th>Server</th>
+              <th>Download</th>
+              <th>Upload</th>
+              <th>Ping</th>
+              <th>Jitter</th>
+              <th>Loaded Ping ↓</th>
+              <th>Loaded Ping ↑</th>
+            </tr>
+          </thead>
+          <tbody id="measurement-table">
+            <!-- Data rows will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>Network Performance Monitor · Built with ❤️</p>
+    </footer>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}?v=2"></script>
+</body>
+</html>
