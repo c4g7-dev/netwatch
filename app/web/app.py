@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -15,6 +16,8 @@ from ..config import AppConfig
 from ..exporter import CSVExporter
 from ..measurements.manager import MeasurementManager
 from ..scheduler import SchedulerService
+from ..internal_db import init_internal_db
+from ..internal_manager import InternalNetworkManager, InternalCSVExporter
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +39,20 @@ def create_web_app(
     if config.web.reverse_proxy_headers:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)  # type: ignore
 
-    executor = ThreadPoolExecutor(max_workers=2)
+    executor = ThreadPoolExecutor(max_workers=4)
+    
+    # Initialize internal network manager
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)
+    internal_session_factory = init_internal_db(data_dir)
+    internal_manager = InternalNetworkManager(internal_session_factory, data_dir)
+    internal_exporter = InternalCSVExporter(internal_session_factory, data_dir)
+    
+    # Auto-start the speedtest server on app startup
+    if internal_manager.start_server():
+        LOGGER.info("Internal speedtest server started automatically on startup")
+    else:
+        LOGGER.warning("Failed to auto-start internal speedtest server")
 
     @app.route("/")
     def index():
@@ -106,7 +122,6 @@ def create_web_app(
                 "interval": config.scheduler.interval_minutes
             })
         
-        import json
         try:
             with open(config_file, "r") as f:
                 return jsonify(json.load(f))
@@ -117,7 +132,6 @@ def create_web_app(
     @app.post("/api/scheduler/config")
     def api_save_scheduler_config():
         """Save scheduler configuration to file."""
-        import json
         
         config_data = request.get_json()
         if not config_data:
@@ -139,6 +153,166 @@ def create_web_app(
         except Exception as e:
             LOGGER.error(f"Failed to save scheduler config: {e}")
             return jsonify({"error": "Failed to save configuration"}), 500
+
+    # =========================================================================
+    # Internal Network API Endpoints
+    # =========================================================================
+
+    @app.get("/api/internal/summary")
+    def api_internal_summary():
+        """Get internal network summary."""
+        return jsonify(internal_manager.get_summary())
+
+    @app.get("/api/internal/devices")
+    def api_internal_devices():
+        """Get list of network devices."""
+        include_offline = request.args.get("include_offline", "false").lower() == "true"
+        return jsonify(internal_manager.get_devices(include_offline=include_offline))
+
+    @app.post("/api/internal/devices/scan")
+    def api_internal_scan_devices():
+        """Scan network for devices."""
+        quick = request.args.get("quick", "true").lower() == "true"
+        devices = internal_manager.scan_devices(quick=quick)
+        return jsonify({"status": "success", "devices": devices})
+
+    @app.get("/api/internal/devices/<int:device_id>")
+    def api_internal_device(device_id: int):
+        """Get specific device details."""
+        device = internal_manager.get_device_details(device_id)
+        if not device:
+            return jsonify({"error": "Device not found"}), 404
+        return jsonify(device)
+
+    @app.put("/api/internal/devices/<int:device_id>")
+    def api_internal_update_device(device_id: int):
+        """Update device information (e.g., friendly name)."""
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        result = internal_manager.update_device(device_id, data)
+        if not result:
+            return jsonify({"error": "Device not found"}), 404
+        return jsonify(result)
+
+    @app.get("/api/internal/measurements")
+    def api_internal_measurements():
+        """Get internal network measurements."""
+        start = _parse_datetime(request.args.get("start"))
+        end = _parse_datetime(request.args.get("end"))
+        limit = request.args.get("limit", type=int)
+        device_id = request.args.get("device_id", type=int)
+        connection_type = request.args.get("connection_type")
+        
+        measurements = internal_manager.get_measurements(
+            limit=limit,
+            start=start,
+            end=end,
+            device_id=device_id,
+            connection_type=connection_type,
+        )
+        return jsonify(measurements)
+
+    def _resolve_device_id(requested_id: Optional[int], auto_register: bool = False) -> Optional[int]:
+        """Resolve device ID by falling back to client's IP address.
+        
+        Args:
+            requested_id: Explicitly requested device ID
+            auto_register: If True, auto-register unknown devices
+        """
+        if requested_id:
+            return requested_id
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        if not client_ip:
+            LOGGER.debug("No client IP available for device resolution")
+            return None
+        if "," in client_ip:
+            client_ip = client_ip.split(",")[0].strip()
+        LOGGER.debug(f"Resolving device ID for client IP: {client_ip}")
+        resolved_id = internal_manager.resolve_device_id_by_ip(client_ip, auto_register=auto_register)
+        LOGGER.debug(f"Resolved device ID: {resolved_id}")
+        return resolved_id
+
+    @app.post("/api/internal/speedtest")
+    def api_internal_speedtest():
+        """Run internal network speedtest (non-streaming)."""
+        requested_id = request.args.get("device_id", type=int)
+        # Auto-register device if not found - they're running a speedtest so we want to track them
+        device_id = _resolve_device_id(requested_id, auto_register=True)
+        executor.submit(_run_internal_speedtest_task, internal_manager, device_id)
+        return jsonify({"status": "queued", "task": "internal_speedtest"}), 202
+
+    @app.get("/api/internal/speedtest/stream")
+    def api_internal_speedtest_stream():
+        """Run internal network speedtest with SSE streaming progress."""
+        requested_id = request.args.get("device_id", type=int)
+        # Auto-register device if not found - they're running a speedtest so we want to track them
+        device_id = _resolve_device_id(requested_id, auto_register=True)
+        
+        def generate():
+            for event in internal_manager.run_speedtest_stream(device_id):
+                event_type = event.get("event", "message")
+                data = json.dumps(event.get("data", {}))
+                yield f"event: {event_type}\ndata: {data}\n\n"
+        
+        return Response(
+            generate(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # For nginx
+            }
+        )
+
+    @app.get("/api/internal/server/status")
+    def api_internal_server_status():
+        """Get internal speedtest server status."""
+        return jsonify(internal_manager.get_server_status())
+
+    @app.post("/api/internal/server/start")
+    def api_internal_server_start():
+        """Start internal speedtest server."""
+        success = internal_manager.start_server()
+        if success:
+            return jsonify({"status": "success", "message": "Server started"})
+        return jsonify({"error": "Failed to start server"}), 500
+
+    @app.post("/api/internal/server/stop")
+    def api_internal_server_stop():
+        """Stop internal speedtest server."""
+        success = internal_manager.stop_server()
+        if success:
+            return jsonify({"status": "success", "message": "Server stopped"})
+        return jsonify({"error": "Failed to stop server"}), 500
+
+    @app.get("/api/internal/export/csv")
+    def api_internal_export_csv():
+        """Export internal measurements as CSV."""
+        scope = request.args.get("scope", "filtered")
+        start = _parse_datetime(request.args.get("start")) if scope == "filtered" else None
+        end = _parse_datetime(request.args.get("end")) if scope == "filtered" else None
+        device_id = request.args.get("device_id", type=int)
+        
+        buffer = internal_exporter.build_csv(start=start, end=end, device_id=device_id)
+        filename = f"internal-results-{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}.csv"
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    @app.get("/api/internal/export/devices")
+    def api_internal_export_devices():
+        """Export device list as CSV."""
+        buffer = internal_exporter.build_devices_csv()
+        filename = f"devices-{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}.csv"
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
 
     return app
 
@@ -181,3 +355,15 @@ def _run_speedtest_task(manager: MeasurementManager, exporter: CSVExporter):
 def _run_bufferbloat_task(manager: MeasurementManager, exporter: CSVExporter):
     manager.run_bufferbloat()
     exporter.write_snapshot()
+
+
+def _run_internal_speedtest_task(internal_manager: InternalNetworkManager, device_id: Optional[int] = None):
+    """Run internal speedtest in background."""
+    try:
+        result = internal_manager.run_speedtest(device_id)
+        if "error" in result:
+            LOGGER.error(f"Internal speedtest failed: {result['error']}")
+        else:
+            LOGGER.info(f"Internal speedtest completed: {result['results'].get('download_mbps', 0):.1f} Mbps down / {result['results'].get('upload_mbps', 0):.1f} Mbps up")
+    except Exception as e:
+        LOGGER.error(f"Internal speedtest task failed: {e}")

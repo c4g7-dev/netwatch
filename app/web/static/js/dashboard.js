@@ -994,6 +994,8 @@ async function loadSchedulerConfig() {
 async function init() {
   attachEvents();
   initSchedulerModal();
+  initViewToggle();
+  initInternalNetwork();
   loadSchedulerConfig();
   
   try {
@@ -1010,6 +1012,1447 @@ async function init() {
     await refreshSummary();
     // Don't reload measurements unless slider moved or filter changed
   }, 60000);
+}
+
+// ============================================================================
+// View Toggle - Internet / Homenet
+// ============================================================================
+function initViewToggle() {
+  const viewBtns = document.querySelectorAll('.view-btn');
+  const viewToggle = document.querySelector('.view-toggle');
+  const internetView = document.getElementById('internet-view');
+  const homenetView = document.getElementById('homenet-view');
+  
+  // Function to switch views
+  function switchToView(view, saveState = true) {
+    // Update button states
+    viewBtns.forEach(b => {
+      if (b.dataset.view === view) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+    
+    // Update toggle indicator
+    if (view === 'homenet') {
+      viewToggle.classList.add('homenet-active');
+    } else {
+      viewToggle.classList.remove('homenet-active');
+    }
+    
+    // Switch views
+    if (view === 'internet') {
+      internetView.classList.add('active');
+      homenetView.classList.remove('active');
+      homenetView.style.display = 'none';
+      internetView.style.display = 'block';
+    } else {
+      homenetView.classList.add('active');
+      internetView.classList.remove('active');
+      internetView.style.display = 'none';
+      homenetView.style.display = 'block';
+      
+      // Load internal data and check server status when switching to homenet
+      checkServerStatus();
+      loadInternalSummary();
+      loadDevices();
+      loadInternalMeasurements();
+    }
+    
+    // Save view state to localStorage
+    if (saveState) {
+      localStorage.setItem('netwatch_current_view', view);
+    }
+  }
+  
+  // Add click handlers
+  viewBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchToView(btn.dataset.view);
+    });
+  });
+  
+  // Restore saved view on page load (without animation)
+  const savedView = localStorage.getItem('netwatch_current_view');
+  if (savedView === 'homenet') {
+    // Disable transition during initial load
+    viewToggle.classList.add('no-transition');
+    switchToView('homenet', false);
+    // Re-enable transitions after the view is set
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        viewToggle.classList.remove('no-transition');
+      });
+    });
+  }
+}
+
+// ============================================================================
+// Internal Network State
+// ============================================================================
+const internalState = {
+  devices: [],
+  measurements: [],
+  serverStatus: 'offline',
+  isTestRunning: false,
+  selectedDeviceId: null,
+};
+
+const internalCharts = {
+  lanDevices: null,
+  wifiDevices: null,
+  speed: null,
+  latency: null,
+  bufferbloat: null,
+  deviceHistory: null,
+};
+
+// ============================================================================
+// Internal Network - API Functions
+// ============================================================================
+async function loadInternalSummary() {
+  try {
+    const response = await fetch('/api/internal/summary');
+    if (!response.ok) throw new Error('Failed to load summary');
+    
+    const data = await response.json();
+    
+    // Update device counts (data.devices contains { total, lan, wifi })
+    const devices = data.devices || {};
+    document.getElementById('internal-device-count').textContent = devices.total || 0;
+    document.getElementById('lan-count').innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+        <line x1="6" y1="6" x2="6.01" y2="6"></line>
+        <line x1="6" y1="18" x2="6.01" y2="18"></line>
+      </svg>
+      ${devices.lan || 0} LAN
+    `;
+    document.getElementById('wifi-count').innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+        <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+        <line x1="12" y1="20" x2="12.01" y2="20"></line>
+      </svg>
+      ${devices.wifi || 0} WiFi
+    `;
+    
+    // Update latest metrics if available
+    if (data.latest) {
+      console.log('Latest data from API:', data.latest);
+      // Map backend field names to frontend expected names
+      const mappedData = {
+        download_speed: data.latest.download_mbps,
+        upload_speed: data.latest.upload_mbps,
+        latency: data.latest.ping_idle_ms,
+        jitter: data.latest.jitter_ms,
+        gateway_ping: data.latest.gateway_ping_ms,
+        local_latency: data.latest.local_latency_ms,
+        bufferbloat_grade: data.latest.bufferbloat_grade
+      };
+      console.log('Mapped data for updateInternalMetrics:', mappedData);
+      updateInternalMetrics(mappedData);
+    } else {
+      console.log('No latest data available');
+    }
+    
+    // Update server status from server_status object
+    if (data.server_status) {
+      updateServerStatus(data.server_status.running ? 'online' : 'offline');
+    }
+    
+  } catch (error) {
+    console.error('Error loading internal summary:', error);
+  }
+}
+
+async function loadDevices() {
+  try {
+    const response = await fetch('/api/internal/devices');
+    if (!response.ok) throw new Error('Failed to load devices');
+    
+    internalState.devices = await response.json();
+    renderDeviceTable();
+    updateDeviceCharts();
+    
+  } catch (error) {
+    console.error('Error loading devices:', error);
+  }
+}
+
+async function loadInternalMeasurements() {
+  try {
+    // Load last 7 days of internal measurements
+    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const params = new URLSearchParams();
+    params.append('start', startDate.toISOString());
+    params.append('limit', '500');
+    
+    const response = await fetch(`/api/internal/measurements?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to load measurements');
+    
+    internalState.measurements = await response.json();
+    updateInternalHistoryCharts();
+    
+  } catch (error) {
+    console.error('Error loading internal measurements:', error);
+  }
+}
+
+function updateInternalHistoryCharts() {
+  const measurements = internalState.measurements;
+  
+  if (!measurements || measurements.length === 0) {
+    console.log('No internal measurements to chart');
+    return;
+  }
+  
+  // Sort by timestamp ascending for charts
+  const sorted = [...measurements].sort((a, b) => 
+    new Date(a.timestamp) - new Date(b.timestamp)
+  );
+  
+  const labels = sorted.map(m => new Date(m.timestamp));
+  const downloadData = sorted.map(m => m.download_mbps || 0);
+  const uploadData = sorted.map(m => m.upload_mbps || 0);
+  const pingData = sorted.map(m => m.ping_idle_ms || null);  // Use null for missing to skip points
+  const jitterData = sorted.map(m => m.jitter_ms || 0);
+  const gatewayPingData = sorted.map(m => m.gateway_ping_ms || null);  // Use null for missing
+  const localLatencyData = sorted.map(m => m.local_latency_ms || 0);
+  // Loaded ping: maximum of ping during download or upload (shows bufferbloat)
+  const loadedPingData = sorted.map(m => {
+    const dlPing = m.ping_during_download_ms;
+    const ulPing = m.ping_during_upload_ms;
+    // Return null if both are missing, otherwise max of available values
+    if (!dlPing && !ulPing) return null;
+    return Math.max(dlPing || 0, ulPing || 0);
+  });
+  
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 800,
+      easing: 'easeOutQuart',
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index',
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          usePointStyle: true,
+          padding: 15,
+          font: { size: 11, weight: '500' },
+          color: 'rgba(255, 255, 255, 0.8)',
+        },
+      },
+      tooltip: {
+        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        titleFont: { size: 13, weight: '600' },
+        bodyFont: { size: 12 },
+        padding: 10,
+        cornerRadius: 8,
+        filter: function(tooltipItem) {
+          // Show all items, even if value is null/0
+          return true;
+        },
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed.y;
+            if (value === null || value === undefined) {
+              return context.dataset.label + ': —';
+            }
+            return context.dataset.label + ': ' + value;
+          }
+        }
+      },
+    },
+    scales: {
+      x: {
+        type: 'time',
+        time: { unit: 'hour' },
+        grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+        ticks: { maxRotation: 0, font: { size: 10 }, color: 'rgba(255, 255, 255, 0.6)' },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+        ticks: { font: { size: 10 }, color: 'rgba(255, 255, 255, 0.6)' },
+      },
+    },
+    elements: {
+      point: { radius: 3, hoverRadius: 6, borderWidth: 2 },
+      line: { tension: 0.4, borderWidth: 2 },
+    },
+  };
+  
+  // Internal Speed History Chart (Download & Upload)
+  const speedCtx = document.getElementById('internal-speed-chart');
+  if (speedCtx) {
+    if (internalCharts.speed) {
+      internalCharts.speed.data.labels = labels;
+      internalCharts.speed.data.datasets[0].data = downloadData;
+      internalCharts.speed.data.datasets[1].data = uploadData;
+      internalCharts.speed.update();
+    } else {
+      internalCharts.speed = new Chart(speedCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Download (Mbps)',
+              data: downloadData,
+              borderColor: '#22d3ee',
+              backgroundColor: 'rgba(34, 211, 238, 0.1)',
+              fill: true,
+            },
+            {
+              label: 'Upload (Mbps)',
+              data: uploadData,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          ...chartOptions,
+          scales: {
+            ...chartOptions.scales,
+            y: {
+              ...chartOptions.scales.y,
+              ticks: {
+                ...chartOptions.scales.y.ticks,
+                callback: (value) => `${value} Mbps`,
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+  
+  // Internal Latency History Chart (Ping & Jitter)
+  const latencyCtx = document.getElementById('internal-latency-chart');
+  if (latencyCtx) {
+    if (internalCharts.latency) {
+      internalCharts.latency.data.labels = labels;
+      internalCharts.latency.data.datasets[0].data = pingData;
+      internalCharts.latency.data.datasets[1].data = jitterData;
+      internalCharts.latency.update();
+    } else {
+      internalCharts.latency = new Chart(latencyCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Ping (ms)',
+              data: pingData,
+              borderColor: '#f97316',
+              backgroundColor: 'rgba(249, 115, 22, 0.1)',
+              fill: true,
+            },
+            {
+              label: 'Jitter (ms)',
+              data: jitterData,
+              borderColor: '#a855f7',
+              backgroundColor: 'rgba(168, 85, 247, 0.1)',
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          ...chartOptions,
+          scales: {
+            ...chartOptions.scales,
+            y: {
+              ...chartOptions.scales.y,
+              ticks: {
+                ...chartOptions.scales.y.ticks,
+                callback: (value) => `${value} ms`,
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+  
+  // Bufferbloat Chart (Latency Under Load) - Shows idle ping vs loaded ping
+  const bufferbloatCtx = document.getElementById('internal-bufferbloat-chart');
+  if (bufferbloatCtx) {
+    if (internalCharts.bufferbloat) {
+      internalCharts.bufferbloat.data.labels = labels;
+      internalCharts.bufferbloat.data.datasets[0].data = pingData;
+      internalCharts.bufferbloat.data.datasets[1].data = loadedPingData;
+      internalCharts.bufferbloat.data.datasets[2].data = gatewayPingData;
+      internalCharts.bufferbloat.update();
+    } else {
+      internalCharts.bufferbloat = new Chart(bufferbloatCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Idle Ping (ms)',
+              data: pingData,
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              fill: false,
+              borderWidth: 2,
+            },
+            {
+              label: 'Loaded Ping (ms)',
+              data: loadedPingData,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              fill: false,
+              borderWidth: 2,
+            },
+            {
+              label: 'Gateway Ping (ms)',
+              data: gatewayPingData,
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.1)',
+              fill: false,
+              borderWidth: 2,
+              borderDash: [5, 5],
+            },
+          ],
+        },
+        options: {
+          ...chartOptions,
+          scales: {
+            ...chartOptions.scales,
+            y: {
+              ...chartOptions.scales.y,
+              ticks: {
+                ...chartOptions.scales.y.ticks,
+                callback: (value) => `${value} ms`,
+              },
+            },
+          },
+        },
+      });
+    }
+  }
+}
+
+async function ensureServerRunning() {
+  // Check if server is running, start it if not
+  if (internalState.serverStatus === 'online') {
+    return true;
+  }
+  
+  try {
+    updateServerStatus('starting');
+    const response = await fetch('/api/internal/server/start', { method: 'POST' });
+    const data = await response.json();
+    
+    if (!response.ok || data.error) {
+      throw new Error(data.error || 'Failed to start server');
+    }
+    
+    updateServerStatus('online');
+    showToast('Speed test server started automatically', 'info');
+    return true;
+  } catch (error) {
+    console.error('Error auto-starting server:', error);
+    showToast('Failed to start server: ' + error.message, 'error');
+    updateServerStatus('offline');
+    return false;
+  }
+}
+
+async function scanDevices() {
+  // Ensure server is running before scanning
+  if (!await ensureServerRunning()) {
+    return;
+  }
+  
+  showToast('Scanning network for devices...', 'info');
+  
+  try {
+    const response = await fetch('/api/internal/devices/scan', { method: 'POST' });
+    if (!response.ok) throw new Error('Scan failed');
+    
+    const result = await response.json();
+    showToast(`Found ${result.devices_found} devices!`, 'success');
+    
+    // Reload devices
+    await loadDevices();
+    await loadInternalSummary();
+    
+    // Update last scan time
+    document.getElementById('last-scan-time').textContent = `Last scan: ${new Date().toLocaleTimeString()}`;
+    
+  } catch (error) {
+    console.error('Error scanning devices:', error);
+    showToast('Failed to scan network', 'error');
+  }
+}
+
+async function toggleServer() {
+  const toggleBtn = document.getElementById('toggle-server');
+  
+  if (internalState.serverStatus === 'online') {
+    // Stop server
+    try {
+      updateServerStatus('starting');
+      toggleBtn.disabled = true;
+      const response = await fetch('/api/internal/server/stop', { method: 'POST' });
+      const data = await response.json();
+      
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to stop server');
+      }
+      
+      updateServerStatus('offline');
+      showToast('Speed test server stopped', 'info');
+    } catch (error) {
+      console.error('Error stopping server:', error);
+      showToast('Failed to stop server: ' + error.message, 'error');
+      updateServerStatus('online');
+    } finally {
+      toggleBtn.disabled = false;
+    }
+  } else {
+    // Start server
+    try {
+      updateServerStatus('starting');
+      toggleBtn.disabled = true;
+      const response = await fetch('/api/internal/server/start', { method: 'POST' });
+      const data = await response.json();
+      
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to start server');
+      }
+      
+      updateServerStatus('online');
+      showToast('Speed test server started on port 5201', 'success');
+    } catch (error) {
+      console.error('Error starting server:', error);
+      showToast('Failed to start server: ' + error.message, 'error');
+      updateServerStatus('offline');
+    } finally {
+      toggleBtn.disabled = false;
+    }
+  }
+}
+
+function updateServerStatus(status) {
+  internalState.serverStatus = status;
+  
+  const serverDot = document.querySelector('.server-dot');
+  const serverText = document.querySelector('.server-text');
+  const toggleBtn = document.getElementById('toggle-server');
+  const runTestBtn = document.getElementById('run-internal-test');
+  
+  if (!serverDot || !serverText || !toggleBtn) return;
+  
+  serverDot.className = 'server-dot ' + status;
+  
+  if (status === 'online') {
+    serverText.textContent = 'Server: Online';
+    toggleBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="6" y="4" width="4" height="16"></rect>
+        <rect x="14" y="4" width="4" height="16"></rect>
+      </svg>
+      Stop Server
+    `;
+    if (runTestBtn) runTestBtn.disabled = false;
+  } else if (status === 'starting') {
+    serverText.textContent = 'Server: Starting...';
+    // Don't disable the button here - let toggleServer manage it
+    if (runTestBtn) runTestBtn.disabled = true;
+  } else {
+    serverText.textContent = 'Server: Offline';
+    toggleBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+        <line x1="6" y1="6" x2="6.01" y2="6"></line>
+        <line x1="6" y1="18" x2="6.01" y2="18"></line>
+      </svg>
+      Start Server
+    `;
+    if (runTestBtn) runTestBtn.disabled = true;
+  }
+}
+
+async function runInternalTest() {
+  if (internalState.isTestRunning) return;
+  
+  // Ensure server is running before starting test
+  if (!await ensureServerRunning()) {
+    return;
+  }
+  
+  internalState.isTestRunning = true;
+  const liveSection = document.getElementById('live-test-section');
+  const runBtn = document.getElementById('run-internal-test');
+  
+  liveSection.style.display = 'block';
+  runBtn.disabled = true;
+  
+  updateLiveTest('Initializing...', 0);
+  
+  // Initialize live wave chart
+  initLiveWaveChart();
+  
+  // Track results for final display
+  const results = {
+    download_speed: 0,
+    upload_speed: 0,
+    latency: 0,
+    jitter: 0,
+    bufferbloat_grade: '?',
+    local_latency: 0,
+  };
+  
+  try {
+    // Use Server-Sent Events for streaming progress
+    const eventSource = new EventSource('/api/internal/speedtest/stream');
+    
+    eventSource.onopen = () => {
+      console.log('SSE connection opened');
+    };
+    
+    eventSource.onerror = (event) => {
+      console.error('SSE error:', event);
+      eventSource.close();
+      showToast('Connection lost during test', 'error');
+      finishTest(false);
+    };
+    
+    // Handle phase updates
+    eventSource.addEventListener('phase', (event) => {
+      const data = JSON.parse(event.data);
+      document.getElementById('live-phase').textContent = capitalize(data.phase);
+      updateLiveTest(data.message, null);
+    });
+    
+    // Handle progress updates
+    eventSource.addEventListener('progress', (event) => {
+      const data = JSON.parse(event.data);
+      updateLiveTest(null, data.percent);
+    });
+    
+    // Handle metric updates (live values)
+    eventSource.addEventListener('metric', (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.name === 'download') {
+        results.download_speed = data.value;
+        document.getElementById('live-download').textContent = `${formatNumber(data.value)} Mbps`;
+        addToLiveWave('download', data.value);
+      } else if (data.name === 'upload') {
+        results.upload_speed = data.value;
+        document.getElementById('live-upload').textContent = `${formatNumber(data.value)} Mbps`;
+        addToLiveWave('upload', data.value);
+      } else if (data.name === 'ping') {
+        results.latency = data.value;
+        document.getElementById('live-latency').textContent = `${formatNumber(data.value)} ms`;
+      } else if (data.name === 'jitter') {
+        results.jitter = data.value;
+      } else if (data.name === 'local_latency') {
+        results.local_latency = data.value;
+      } else if (data.name === 'gateway_ping') {
+        results.gateway_ping = data.value;
+      } else if (data.name === 'grade') {
+        results.bufferbloat_grade = data.value;
+      }
+    });
+    
+    // Handle upload phase start - reset chart for upload visualization
+    eventSource.addEventListener('upload_start', (event) => {
+      console.log('Upload phase starting - resetting chart');
+      resetChartForUpload();
+    });
+    
+    // Handle test completion
+    eventSource.addEventListener('complete', (event) => {
+      const data = JSON.parse(event.data);
+      console.log('Test complete:', data);
+      
+      // Update with final results - handle both direct data and nested results
+      if (data.results) {
+        results.download_speed = data.results.download_mbps || results.download_speed;
+        results.upload_speed = data.results.upload_mbps || results.upload_speed;
+        results.latency = data.results.ping_idle_ms || results.latency;
+        results.jitter = data.results.jitter_ms || results.jitter;
+        results.bufferbloat_grade = data.results.bufferbloat_grade || results.bufferbloat_grade;
+        results.local_latency = data.results.local_latency_ms || results.local_latency;
+      } else {
+        // Direct data from streaming complete event
+        results.download_speed = data.download || results.download_speed;
+        results.upload_speed = data.upload || results.upload_speed;
+        results.latency = data.ping || results.latency;
+        results.jitter = data.jitter || results.jitter;
+      }
+      
+      eventSource.close();
+      
+      // Ramp down the graph smoothly
+      rampDownLiveWave(() => {
+        finishTest(true);
+      });
+    });
+    
+    // Handle errors from server
+    eventSource.addEventListener('error', (event) => {
+      const data = JSON.parse(event.data);
+      console.error('Server error:', data.message);
+      eventSource.close();
+      showToast(`Test failed: ${data.message}`, 'error');
+      finishTest(false);
+    });
+    
+  } catch (error) {
+    console.error('Error running internal test:', error);
+    showToast('Internal speed test failed', 'error');
+    finishTest(false);
+  }
+  
+  function finishTest(success) {
+    if (success) {
+      // Update live displays with final values
+      document.getElementById('live-download').textContent = `${formatNumber(results.download_speed)} Mbps`;
+      document.getElementById('live-upload').textContent = `${formatNumber(results.upload_speed)} Mbps`;
+      document.getElementById('live-latency').textContent = `${formatNumber(results.latency)} ms`;
+      document.getElementById('live-phase').textContent = 'Complete';
+      
+      updateLiveTest('Test complete!', 100);
+      showToast('Speed test completed!', 'success');
+      
+      // Update metrics display
+      updateInternalMetrics(results);
+      
+      // Reload data including historical charts
+      loadInternalSummary();
+      loadDevices();
+      loadInternalMeasurements();
+      
+      // Hide live section after a delay
+      setTimeout(() => {
+        liveSection.style.display = 'none';
+      }, 4000);
+    } else {
+      updateLiveTest('Test failed', 0);
+      setTimeout(() => {
+        liveSection.style.display = 'none';
+      }, 2000);
+    }
+    
+    internalState.isTestRunning = false;
+    runBtn.disabled = false;
+  }
+}
+
+// Live wave chart for real-time metrics
+let liveWaveChart = null;
+const liveWaveData = {
+  download: [],
+  upload: [],
+  labels: [],
+};
+
+function initLiveWaveChart() {
+  const canvas = document.getElementById('live-wave-chart');
+  if (!canvas) return;
+  
+  // Reset data and phase
+  liveWaveData.download = [];
+  liveWaveData.upload = [];
+  liveWaveData.labels = [];
+  currentTestPhase = 'download';
+  
+  // Destroy existing chart
+  if (liveWaveChart) {
+    liveWaveChart.destroy();
+  }
+  
+  const ctx = canvas.getContext('2d');
+  liveWaveChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: liveWaveData.labels,
+      datasets: [
+        {
+          label: 'Download',
+          data: liveWaveData.download,
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34, 211, 238, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          spanGaps: false,  // Don't connect across null values
+        },
+        {
+          label: 'Upload',
+          data: liveWaveData.upload,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          spanGaps: false,  // Don't connect across null values
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 100,
+      },
+      interaction: {
+        intersect: false,
+        mode: 'index',
+      },
+      scales: {
+        x: {
+          display: false,
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)',
+          },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.6)',
+            callback: (value) => `${value} Mbps`,
+          },
+        },
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: {
+            color: 'rgba(255, 255, 255, 0.8)',
+            usePointStyle: true,
+            pointStyle: 'line',
+          },
+        },
+        tooltip: {
+          enabled: true,
+          filter: (tooltipItem) => tooltipItem.raw !== null,  // Hide null values in tooltip
+        },
+      },
+    },
+  });
+}
+
+// Track which phase we're in
+let currentTestPhase = 'download';
+
+function addToLiveWave(type, value) {
+  if (!liveWaveChart) return;
+  
+  const now = new Date().toLocaleTimeString();
+  
+  // Keep max 50 data points for smoother visualization
+  if (liveWaveData.labels.length >= 50) {
+    liveWaveData.labels.shift();
+    liveWaveData.download.shift();
+    liveWaveData.upload.shift();
+  }
+  
+  // Update phase tracking
+  currentTestPhase = type;
+  
+  // Always add new data point for more responsive updates
+  liveWaveData.labels.push(now);
+  
+  if (type === 'download') {
+    liveWaveData.download.push(value);
+    liveWaveData.upload.push(null);  // Use null to not draw a line
+  } else {
+    liveWaveData.upload.push(value);
+    liveWaveData.download.push(null);  // Use null to not draw a line
+  }
+  
+  liveWaveChart.update('active');
+}
+
+function resetChartForUpload() {
+  // Immediately clear chart data and start fresh for upload phase
+  if (!liveWaveChart) return;
+  
+  // Update phase tracking
+  currentTestPhase = 'upload';
+  
+  // Immediately reset all data arrays - no animation delay
+  liveWaveData.labels = [];
+  liveWaveData.download = [];
+  liveWaveData.upload = [];
+  
+  // Update chart immediately with empty data
+  liveWaveChart.data.labels = liveWaveData.labels;
+  liveWaveChart.data.datasets[0].data = liveWaveData.download;
+  liveWaveChart.data.datasets[1].data = liveWaveData.upload;
+  liveWaveChart.update('none');
+  
+  console.log('[LiveWave] Chart reset for upload phase - starting fresh');
+}
+
+function rampDownLiveWave(callback) {
+  if (!liveWaveChart || (liveWaveData.download.length === 0 && liveWaveData.upload.length === 0)) {
+    if (callback) callback();
+    return;
+  }
+  
+  const steps = 10;
+  const interval = 100; // 100ms per step = 1 second total
+  let currentStep = 0;
+  
+  const rampInterval = setInterval(() => {
+    currentStep++;
+    const factor = 1 - (currentStep / steps);
+    
+    // Reduce all values proportionally (skip null values)
+    for (let i = 0; i < liveWaveData.download.length; i++) {
+      if (liveWaveData.download[i] !== null) {
+        liveWaveData.download[i] *= factor;
+      }
+    }
+    for (let i = 0; i < liveWaveData.upload.length; i++) {
+      if (liveWaveData.upload[i] !== null) {
+        liveWaveData.upload[i] *= factor;
+      }
+    }
+    
+    liveWaveChart.update('none');
+    
+    if (currentStep >= steps) {
+      clearInterval(rampInterval);
+      // Set all non-null values to 0
+      for (let i = 0; i < liveWaveData.download.length; i++) {
+        if (liveWaveData.download[i] !== null) liveWaveData.download[i] = 0;
+      }
+      for (let i = 0; i < liveWaveData.upload.length; i++) {
+        if (liveWaveData.upload[i] !== null) liveWaveData.upload[i] = 0;
+      }
+      liveWaveChart.update('none');
+      if (callback) callback();
+    }
+  }, interval);
+}
+
+function capitalize(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function updateLiveTest(status, progress) {
+  if (status !== null && status !== undefined) {
+    document.getElementById('live-test-status').textContent = status;
+  }
+  if (progress !== null && progress !== undefined) {
+    document.getElementById('live-test-bar').style.width = `${progress}%`;
+  }
+}
+
+function updateInternalMetrics(data) {
+  // Update metric values
+  const downloadEl = document.getElementById('internal-download-value');
+  const uploadEl = document.getElementById('internal-upload-value');
+  const pingEl = document.getElementById('internal-ping-value');
+  const jitterEl = document.getElementById('internal-jitter-value');
+  const gatewayPingEl = document.getElementById('internal-gateway-ping-value');
+  const localLatencyEl = document.getElementById('internal-local-latency-value');
+  const gradeEl = document.getElementById('internal-bufferbloat-grade');
+  
+  if (downloadEl) {
+    const current = parseFloat(downloadEl.textContent) || 0;
+    animateValue(downloadEl, current, data.download_speed || 0);
+  }
+  if (uploadEl) {
+    const current = parseFloat(uploadEl.textContent) || 0;
+    animateValue(uploadEl, current, data.upload_speed || 0);
+  }
+  if (pingEl) {
+    const current = parseFloat(pingEl.textContent) || 0;
+    animateValue(pingEl, current, data.latency || 0);
+  }
+  if (jitterEl) {
+    const current = parseFloat(jitterEl.textContent) || 0;
+    animateValue(jitterEl, current, data.jitter || 0);
+  }
+  if (gatewayPingEl) {
+    const current = parseFloat(gatewayPingEl.textContent) || 0;
+    animateValue(gatewayPingEl, current, data.gateway_ping || 0);
+  }
+  if (localLatencyEl) {
+    const current = parseFloat(localLatencyEl.textContent) || 0;
+    animateValue(localLatencyEl, current, data.local_latency || 0);
+  }
+  if (gradeEl && data.bufferbloat_grade) {
+    gradeEl.textContent = data.bufferbloat_grade;
+    gradeEl.className = 'metric-value grade-value grade-' + data.bufferbloat_grade.toLowerCase().replace('+', '-plus');
+  }
+  
+  // Update progress bars
+  updateProgressBar('internal-download-progress', data.download_speed || 0, 1000);
+  updateProgressBar('internal-upload-progress', data.upload_speed || 0, 1000);
+  updateProgressBar('internal-ping-progress', data.latency || 0, 10);
+  updateProgressBar('internal-jitter-progress', data.jitter || 0, 5);
+  updateProgressBar('internal-gateway-ping-progress', data.gateway_ping || 0, 10);
+  updateProgressBar('internal-local-latency-progress', data.local_latency || 0, 10);
+}
+
+// ============================================================================
+// Device Table Rendering
+// ============================================================================
+function renderDeviceTable() {
+  const tbody = document.getElementById('device-table');
+  const emptyState = document.getElementById('device-empty-state');
+  
+  if (!internalState.devices.length) {
+    tbody.innerHTML = '';
+    emptyState.classList.add('visible');
+    return;
+  }
+  
+  emptyState.classList.remove('visible');
+  
+  const rows = internalState.devices.map(device => {
+    const isLan = device.connection_type === 'lan';
+    const displayName = device.friendly_name || device.hostname || 'Unknown';
+    const typeIcon = isLan ? `
+      <div class="device-type-icon lan">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+          <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+          <line x1="6" y1="6" x2="6.01" y2="6"></line>
+          <line x1="6" y1="18" x2="6.01" y2="18"></line>
+        </svg>
+      </div>
+    ` : `
+      <div class="device-type-icon wifi">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+          <line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+      </div>
+    `;
+    
+    return `
+      <tr data-device-id="${device.id}">
+        <td>${typeIcon}</td>
+        <td>
+          <span class="device-name">${displayName}</span>
+          ${device.hostname ? `<span class="device-hostname">${device.hostname}</span>` : ''}
+        </td>
+        <td>${device.ip_address}</td>
+        <td><code>${device.mac_address || '—'}</code></td>
+        <td>${device.last_download ? formatNumber(device.last_download) + ' Mbps' : '—'}</td>
+        <td>${device.last_upload ? formatNumber(device.last_upload) + ' Mbps' : '—'}</td>
+        <td>${device.last_ping ? formatNumber(device.last_ping) + ' ms' : '—'}</td>
+        <td>${device.last_test ? new Date(device.last_test).toLocaleString() : 'Never'}</td>
+        <td>
+          <button class="device-action-btn" onclick="showDeviceDetails(${device.id})" title="View Details">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  tbody.innerHTML = rows;
+}
+
+// ============================================================================
+// Device Charts
+// ============================================================================
+function updateDeviceCharts() {
+  const lanDevices = internalState.devices.filter(d => d.connection_type === 'lan');
+  const wifiDevices = internalState.devices.filter(d => d.connection_type === 'wifi');
+  
+  // LAN Devices Chart
+  const lanCtx = document.getElementById('lan-devices-chart');
+  if (lanCtx) {
+    if (lanDevices.length === 0) {
+      // No LAN devices found
+      showChartPlaceholder(lanCtx, 'No LAN devices found');
+    } else {
+      const labels = lanDevices.map(d => d.friendly_name || d.hostname || d.ip_address);
+      const downloadData = lanDevices.map(d => d.last_download);
+      const uploadData = lanDevices.map(d => d.last_upload);
+      
+      // Check if we have any actual data
+      const hasData = downloadData.some(v => v !== null && v !== undefined) || 
+                      uploadData.some(v => v !== null && v !== undefined);
+      
+      if (!hasData) {
+        // Devices exist but no tests run - show placeholder with device names
+        showChartPlaceholder(lanCtx, `${lanDevices.length} device(s) - Run tests to see speeds`);
+      } else {
+        if (internalCharts.lanDevices) {
+          internalCharts.lanDevices.data.labels = labels;
+          internalCharts.lanDevices.data.datasets[0].data = downloadData.map(v => v || 0);
+          internalCharts.lanDevices.data.datasets[1].data = uploadData.map(v => v || 0);
+          internalCharts.lanDevices.update();
+        } else {
+          internalCharts.lanDevices = new Chart(lanCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: 'Download',
+                  data: downloadData.map(v => v || 0),
+                  backgroundColor: 'rgba(16, 185, 129, 0.5)',
+                  borderColor: '#10b981',
+                  borderWidth: 1,
+                },
+                {
+                  label: 'Upload',
+                  data: uploadData.map(v => v || 0),
+                  backgroundColor: 'rgba(34, 211, 238, 0.5)',
+                  borderColor: '#22d3ee',
+                  borderWidth: 1,
+                }
+              ]
+            },
+            options: getBarChartOptions()
+          });
+        }
+      }
+    }
+  }
+  
+  // WiFi Devices Chart
+  const wifiCtx = document.getElementById('wifi-devices-chart');
+  if (wifiCtx) {
+    if (wifiDevices.length === 0) {
+      showChartPlaceholder(wifiCtx, 'No WiFi devices found');
+    } else {
+      const labels = wifiDevices.map(d => d.friendly_name || d.hostname || d.ip_address);
+      const downloadData = wifiDevices.map(d => d.last_download);
+      const uploadData = wifiDevices.map(d => d.last_upload);
+      
+      const hasData = downloadData.some(v => v !== null && v !== undefined) || 
+                      uploadData.some(v => v !== null && v !== undefined);
+      
+      if (!hasData) {
+        showChartPlaceholder(wifiCtx, `${wifiDevices.length} device(s) - Run tests to see speeds`);
+      } else {
+        if (internalCharts.wifiDevices) {
+          internalCharts.wifiDevices.data.labels = labels;
+          internalCharts.wifiDevices.data.datasets[0].data = downloadData.map(v => v || 0);
+          internalCharts.wifiDevices.data.datasets[1].data = uploadData.map(v => v || 0);
+          internalCharts.wifiDevices.update();
+        } else {
+          internalCharts.wifiDevices = new Chart(wifiCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: 'Download',
+                  data: downloadData.map(v => v || 0),
+                  backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                  borderColor: '#3b82f6',
+                  borderWidth: 1,
+                },
+                {
+                  label: 'Upload',
+                  data: uploadData.map(v => v || 0),
+                  backgroundColor: 'rgba(168, 85, 247, 0.5)',
+                  borderColor: '#a855f7',
+                  borderWidth: 1,
+                }
+              ]
+            },
+            options: getBarChartOptions()
+          });
+        }
+      }
+    }
+  }
+}
+
+function showChartPlaceholder(canvas, message) {
+  const ctx = canvas.getContext('2d');
+  const parent = canvas.parentElement;
+  
+  // Clear the canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw placeholder message
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.font = '14px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+}
+
+function getBarChartOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          usePointStyle: true,
+          padding: 15,
+          font: { size: 11, weight: '500' }
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        titleFont: { size: 13, weight: '600' },
+        bodyFont: { size: 12 },
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          label: function(context) {
+            return `${context.dataset.label}: ${context.raw.toFixed(2)} Mbps`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+        ticks: { font: { size: 10 }, maxRotation: 45 }
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) { return value + ' Mbps'; }
+        }
+      }
+    }
+  };
+}
+
+// ============================================================================
+// Device Detail Modal
+// ============================================================================
+async function showDeviceDetails(deviceId) {
+  const modal = document.getElementById('device-modal');
+  internalState.selectedDeviceId = deviceId;
+  
+  try {
+    const response = await fetch(`/api/internal/devices/${deviceId}`);
+    if (!response.ok) throw new Error('Failed to load device');
+    
+    const device = await response.json();
+    
+    // Update modal content
+    document.getElementById('device-modal-title').textContent = device.friendly_name || device.hostname || 'Unknown Device';
+    document.getElementById('device-ip').textContent = device.ip_address;
+    document.getElementById('device-mac').textContent = device.mac_address || '—';
+    document.getElementById('device-conn-type').textContent = device.connection_type?.toUpperCase() || '—';
+    document.getElementById('device-vendor').textContent = device.vendor || '—';
+    document.getElementById('device-first-seen').textContent = device.first_seen ? new Date(device.first_seen).toLocaleString() : '—';
+    document.getElementById('device-last-seen').textContent = device.last_seen ? new Date(device.last_seen).toLocaleString() : '—';
+    
+    // Update stats
+    document.getElementById('device-best-download').textContent = device.best_download ? `${formatNumber(device.best_download)} Mbps` : '— Mbps';
+    document.getElementById('device-best-upload').textContent = device.best_upload ? `${formatNumber(device.best_upload)} Mbps` : '— Mbps';
+    document.getElementById('device-avg-ping').textContent = device.avg_ping ? `${formatNumber(device.avg_ping)} ms` : '— ms';
+    document.getElementById('device-avg-jitter').textContent = device.avg_jitter ? `${formatNumber(device.avg_jitter)} ms` : '— ms';
+    
+    // Update icon
+    const iconEl = document.getElementById('device-modal-icon');
+    if (device.connection_type === 'lan') {
+      iconEl.className = 'lan-icon';
+      iconEl.innerHTML = `
+        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+        <line x1="6" y1="6" x2="6.01" y2="6"></line>
+        <line x1="6" y1="18" x2="6.01" y2="18"></line>
+      `;
+    } else {
+      iconEl.className = 'wifi-icon';
+      iconEl.innerHTML = `
+        <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+        <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+        <line x1="12" y1="20" x2="12.01" y2="20"></line>
+      `;
+    }
+    
+    // Load measurements for this device
+    if (device.measurements && device.measurements.length) {
+      renderDeviceMeasurements(device.measurements);
+      renderDeviceHistoryChart(device.measurements);
+    }
+    
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+  } catch (error) {
+    console.error('Error loading device details:', error);
+    showToast('Failed to load device details', 'error');
+  }
+}
+
+function renderDeviceMeasurements(measurements) {
+  const tbody = document.getElementById('device-measurements-table');
+  if (!tbody) return;
+  if (!measurements || !measurements.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No measurements recorded yet.</td></tr>`;
+    return;
+  }
+  
+  const rows = measurements.slice(0, 10).map(m => `
+    <tr>
+      <td>${new Date(m.timestamp).toLocaleString()}</td>
+      <td>${formatNumber(m.download_speed)} Mbps</td>
+      <td>${formatNumber(m.upload_speed)} Mbps</td>
+      <td>${formatNumber(m.ping_idle_ms)} ms</td>
+      <td>${m.ping_loaded_ms != null ? formatNumber(m.ping_loaded_ms) + ' ms' : '—'}</td>
+      <td>${formatNumber(m.jitter)} ms</td>
+      <td><span class="grade-value grade-${(m.bufferbloat_grade || 'F').toLowerCase().replace('+', '-plus')}">${m.bufferbloat_grade || '—'}</span></td>
+    </tr>
+  `).join('');
+  
+  tbody.innerHTML = rows;
+}
+
+function renderDeviceHistoryChart(measurements) {
+  const ctx = document.getElementById('device-history-chart');
+  if (!ctx) return;
+  if (internalCharts.deviceHistory) {
+    internalCharts.deviceHistory.destroy();
+    internalCharts.deviceHistory = null;
+  }
+  if (!measurements || !measurements.length) {
+    const chartCtx = ctx.getContext('2d');
+    chartCtx.clearRect(0, 0, ctx.width, ctx.height);
+    return;
+  }
+  
+  const labels = measurements.map(m => new Date(m.timestamp));
+  const downloadData = measurements.map(m => m.download_speed);
+  const uploadData = measurements.map(m => m.upload_speed);
+  
+  internalCharts.deviceHistory = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Download',
+          data: downloadData,
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34, 211, 238, 0.1)',
+          fill: true,
+          tension: 0.4,
+        },
+        {
+          label: 'Upload',
+          data: uploadData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true,
+          tension: 0.4,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+        }
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit: 'hour' },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        }
+      }
+    }
+  });
+}
+
+function closeDeviceModal() {
+  const modal = document.getElementById('device-modal');
+  modal.classList.remove('active');
+  document.body.style.overflow = '';
+  internalState.selectedDeviceId = null;
+}
+
+function exportInternalCsv() {
+  window.location.href = '/api/internal/export/csv';
+  showToast('Downloading internal network CSV...', 'success');
+}
+
+// ============================================================================
+// Internal Network Initialization
+// ============================================================================
+function initInternalNetwork() {
+  // Button event listeners
+  document.getElementById('scan-devices')?.addEventListener('click', scanDevices);
+  document.getElementById('toggle-server')?.addEventListener('click', toggleServer);
+  document.getElementById('run-internal-test')?.addEventListener('click', runInternalTest);
+  document.getElementById('export-internal-csv')?.addEventListener('click', exportInternalCsv);
+  
+  // Device modal
+  document.getElementById('close-device-modal')?.addEventListener('click', closeDeviceModal);
+  document.getElementById('close-device-detail')?.addEventListener('click', closeDeviceModal);
+  document.getElementById('run-device-test')?.addEventListener('click', async () => {
+    if (internalState.selectedDeviceId) {
+      closeDeviceModal();
+      await runInternalTest();
+    }
+  });
+  
+  // Close modal on backdrop click
+  document.getElementById('device-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'device-modal') {
+      closeDeviceModal();
+    }
+  });
+  
+  // Check server status on load
+  checkServerStatus();
+}
+
+async function checkServerStatus() {
+  try {
+    const response = await fetch('/api/internal/server/status');
+    if (!response.ok) return;
+    
+    const data = await response.json();
+    updateServerStatus(data.running ? 'online' : 'offline');
+  } catch (error) {
+    console.error('Error checking server status:', error);
+  }
 }
 
 // Start the dashboard only once

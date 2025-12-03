@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=5" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=11" />
   
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
@@ -32,6 +32,26 @@
           </svg>
         </div>
         <h1>Network Performance</h1>
+        
+        <!-- View Toggle -->
+        <div class="view-toggle">
+          <button class="view-btn active" data-view="internet" title="Internet Speed Tests">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            Internet
+          </button>
+          <button class="view-btn" data-view="homenet" title="Home Network Tests">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            Homenet
+          </button>
+          <div class="view-toggle-indicator"></div>
+        </div>
       </div>
       <div class="status-pill">
         <span class="status-dot"></span>
@@ -45,8 +65,11 @@
       </div>
     </header>
 
+    <!-- ========== INTERNET VIEW ========== -->
+    <div class="view-content active" id="internet-view">
+    
     <!-- Controls -->
-    <section class="controls glass-card">
+    <section class="controls glass-card" id="internet-controls">
       <div class="controls-inner">
         <!-- Time Range Filters -->
         <div class="filter-group">
@@ -313,7 +336,7 @@
     </section>
 
     <!-- Charts Section -->
-    <section class="charts-section">
+    <section class="charts-section" id="internet-charts-section">
       <div class="section-header">
         <h2 class="section-title">Performance Trends</h2>
       </div>
@@ -373,7 +396,7 @@
     </section>
 
     <!-- Data Table -->
-    <section class="table-section glass-card">
+    <section class="table-section glass-card" id="internet-table">
       <div class="table-header">
         <h2 class="table-title">Measurement History</h2>
       </div>
@@ -398,6 +421,431 @@
         </table>
       </div>
     </section>
+    </div>
+    <!-- End Internet View -->
+
+    <!-- ========== HOMENET VIEW ========== -->
+    <div class="view-content" id="homenet-view" style="display: none;">
+    
+    <!-- Homenet Controls -->
+    <section class="controls glass-card" id="homenet-controls">
+      <div class="controls-inner">
+        <!-- Server Status -->
+        <div class="server-status-group">
+          <div class="server-indicator" id="server-indicator">
+            <span class="server-dot offline"></span>
+            <span class="server-text">Server: Offline</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-group">
+          <button class="action-btn" id="scan-devices">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            Scan Devices
+          </button>
+          <button class="action-btn" id="toggle-server">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            </svg>
+            Start Server
+          </button>
+          <button class="action-btn primary" id="run-internal-test" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Run Test
+          </button>
+          <button class="action-btn" id="export-internal-csv">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Test Progress -->
+    <section class="live-test-section glass-card" id="live-test-section" style="display: none;">
+      <div class="live-test-header">
+        <h3>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          Live Test Progress
+        </h3>
+        <span class="live-test-status" id="live-test-status">Initializing...</span>
+      </div>
+      <div class="live-test-progress">
+        <div class="live-test-bar" id="live-test-bar" style="width: 0%"></div>
+      </div>
+      <!-- Live Wave Chart -->
+      <div class="live-wave-container">
+        <canvas id="live-wave-chart"></canvas>
+      </div>
+      <div class="live-test-metrics">
+        <div class="live-metric">
+          <span class="live-metric-label">Phase</span>
+          <span class="live-metric-value" id="live-phase">—</span>
+        </div>
+        <div class="live-metric">
+          <span class="live-metric-label">Download</span>
+          <span class="live-metric-value" id="live-download">— Mbps</span>
+        </div>
+        <div class="live-metric">
+          <span class="live-metric-label">Upload</span>
+          <span class="live-metric-value" id="live-upload">— Mbps</span>
+        </div>
+        <div class="live-metric">
+          <span class="live-metric-label">Latency</span>
+          <span class="live-metric-value" id="live-latency">— ms</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Internal Metrics Grid -->
+    <section class="metrics-grid" id="internal-metrics-grid">
+      <!-- Internal Download -->
+      <div class="metric-card glass-card download">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">LAN Download</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-download-value">—</span>
+            <span class="metric-unit">Mbps</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-download-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="internal-download-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="internal-download-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Internal Upload -->
+      <div class="metric-card glass-card upload">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">LAN Upload</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-upload-value">—</span>
+            <span class="metric-unit">Mbps</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-upload-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="internal-upload-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="internal-upload-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Internal Ping -->
+      <div class="metric-card glass-card ping">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">LAN Ping</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-ping-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-ping-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="internal-ping-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="internal-ping-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Internal Jitter -->
+      <div class="metric-card glass-card jitter">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">LAN Jitter</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-jitter-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-jitter-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-sparkline" id="internal-jitter-sparkline"></div>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="internal-jitter-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gateway Ping -->
+      <div class="metric-card glass-card gateway-ping">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Gateway Ping</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-gateway-ping-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-gateway-ping-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="internal-gateway-ping-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Local Latency (Network to Gateway) -->
+      <div class="metric-card glass-card local-latency">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Local Latency</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-local-latency-value">—</span>
+            <span class="metric-unit">ms</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-local-latency-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+          <div class="metric-progress">
+            <div class="metric-progress-bar" id="internal-local-latency-progress" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bufferbloat Grade -->
+      <div class="metric-card glass-card bufferbloat-grade">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Bufferbloat</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value grade-value" id="internal-bufferbloat-grade">—</span>
+          </div>
+          <span class="metric-delta neutral" id="internal-bufferbloat-delta">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            —
+          </span>
+        </div>
+      </div>
+
+      <!-- Device Count -->
+      <div class="metric-card glass-card device-count">
+        <div class="metric-content">
+          <div class="metric-header">
+            <span class="metric-title">Devices</span>
+            <div class="metric-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                <rect x="9" y="9" width="6" height="6"></rect>
+                <line x1="9" y1="1" x2="9" y2="4"></line>
+                <line x1="15" y1="1" x2="15" y2="4"></line>
+                <line x1="9" y1="20" x2="9" y2="23"></line>
+                <line x1="15" y1="20" x2="15" y2="23"></line>
+                <line x1="20" y1="9" x2="23" y2="9"></line>
+                <line x1="20" y1="14" x2="23" y2="14"></line>
+                <line x1="1" y1="9" x2="4" y2="9"></line>
+                <line x1="1" y1="14" x2="4" y2="14"></line>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-wrapper">
+            <span class="metric-value" id="internal-device-count">0</span>
+            <span class="metric-unit">found</span>
+          </div>
+          <div class="device-breakdown">
+            <span class="device-type lan" id="lan-count">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+              0 LAN
+            </span>
+            <span class="device-type wifi" id="wifi-count">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+              </svg>
+              0 WiFi
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Internal Charts Section -->
+    <section class="charts-section" id="internal-charts-section">
+      <div class="section-header">
+        <h2 class="section-title">Device Performance</h2>
+      </div>
+      <div class="charts-grid">
+        <!-- LAN Devices Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot green"></span>
+              LAN Devices
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="lan-devices-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- WiFi Devices Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot blue"></span>
+              WiFi Devices
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="wifi-devices-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Internal Speed Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot cyan"></span>
+              LAN Speed History
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="internal-speed-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Internal Latency Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot purple"></span>
+              LAN Latency History
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="internal-latency-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Bufferbloat / Loaded Ping Chart -->
+        <div class="chart-card glass-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">
+              <span class="chart-dot orange"></span>
+              Bufferbloat (Latency Under Load)
+            </span>
+          </div>
+          <div class="chart-container">
+            <canvas id="internal-bufferbloat-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Device Table -->
+    <section class="table-section glass-card" id="device-table-section">
+      <div class="table-header">
+        <h2 class="table-title">Network Devices</h2>
+        <span class="table-subtitle" id="last-scan-time">Last scan: Never</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Device Name</th>
+              <th>IP Address</th>
+              <th>MAC Address</th>
+              <th>Download</th>
+              <th>Upload</th>
+              <th>Ping</th>
+              <th>Last Test</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="device-table">
+            <!-- Device rows will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="device-empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <p>No devices found. Click "Scan Devices" to discover network devices.</p>
+      </div>
+    </section>
+    </div>
+    <!-- End Homenet View -->
 
     <!-- Footer -->
     <footer>
@@ -407,6 +855,125 @@
 
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
+
+  <!-- Device Detail Modal -->
+  <div class="modal-overlay" id="device-modal">
+    <div class="modal-content glass-card device-detail-modal">
+      <div class="modal-header">
+        <h2>
+          <svg id="device-modal-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+          <span id="device-modal-title">Device Details</span>
+        </h2>
+        <button class="modal-close" id="close-device-modal">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Device Info Section -->
+        <div class="device-info-section">
+          <div class="device-info-grid">
+            <div class="device-info-item">
+              <span class="info-label">IP Address</span>
+              <span class="info-value" id="device-ip">—</span>
+            </div>
+            <div class="device-info-item">
+              <span class="info-label">MAC Address</span>
+              <span class="info-value" id="device-mac">—</span>
+            </div>
+            <div class="device-info-item">
+              <span class="info-label">Connection Type</span>
+              <span class="info-value" id="device-conn-type">—</span>
+            </div>
+            <div class="device-info-item">
+              <span class="info-label">Vendor</span>
+              <span class="info-value" id="device-vendor">—</span>
+            </div>
+            <div class="device-info-item">
+              <span class="info-label">First Seen</span>
+              <span class="info-value" id="device-first-seen">—</span>
+            </div>
+            <div class="device-info-item">
+              <span class="info-label">Last Seen</span>
+              <span class="info-value" id="device-last-seen">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Device Stats Section -->
+        <div class="device-stats-section">
+          <h3>Performance Statistics</h3>
+          <div class="device-stats-grid">
+            <div class="device-stat-card">
+              <span class="stat-label">Best Download</span>
+              <span class="stat-value" id="device-best-download">— Mbps</span>
+            </div>
+            <div class="device-stat-card">
+              <span class="stat-label">Best Upload</span>
+              <span class="stat-value" id="device-best-upload">— Mbps</span>
+            </div>
+            <div class="device-stat-card">
+              <span class="stat-label">Avg Ping</span>
+              <span class="stat-value" id="device-avg-ping">— ms</span>
+            </div>
+            <div class="device-stat-card">
+              <span class="stat-label">Avg Jitter</span>
+              <span class="stat-value" id="device-avg-jitter">— ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Device History Chart -->
+        <div class="device-history-section">
+          <h3>Speed History</h3>
+          <div class="chart-container">
+            <canvas id="device-history-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Device Measurements Table -->
+        <div class="device-measurements-section">
+          <h3>Recent Measurements</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Download</th>
+                  <th>Upload</th>
+                  <th>Idle Ping</th>
+                  <th>Loaded Ping</th>
+                  <th>Jitter</th>
+                  <th>Grade</th>
+                </tr>
+              </thead>
+              <tbody id="device-measurements-table">
+                <!-- Measurement rows will be inserted here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="modal-btn secondary" id="close-device-detail">Close</button>
+        <button class="modal-btn primary" id="run-device-test">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Run Test
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Scheduler Configuration Modal -->
   <div class="modal-overlay" id="scheduler-modal">
@@ -770,6 +1337,6 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <script src="{{ url_for('static', filename='js/dashboard.js') }}?v=6"></script>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}?v=28"></script>
 </body>
 </html>

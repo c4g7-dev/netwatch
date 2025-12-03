@@ -5,21 +5,32 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-1.3.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/Flask-3.0+-green.svg" alt="Flask">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Platform">
 </p>
 
-A beautiful, self-hosted network performance monitoring dashboard with real-time speedtest measurements, bufferbloat detection, and historical trend analysis. Built with Flask and featuring a modern glass-morphism UI.
+A beautiful, self-hosted network performance monitoring dashboard with real-time speedtest measurements, bufferbloat detection, internal network (Homenet) testing, and historical trend analysis. Built with Flask and featuring a modern glass-morphism UI.
 
 ## ✨ Features
 
-### 📊 Performance Monitoring
+### 📊 Internet Performance Monitoring
 - **Ookla Speedtest Integration** - Automatic binary download and execution
 - **Bufferbloat Testing** - iperf3-based latency under load measurements
 - **8 Key Metrics** - Download, Upload, Ping (Idle), Jitter, Loaded Latency (↓/↑), Download/Upload Latency
 - **Real-time Updates** - Live dashboard with animated metrics and sparklines
+
+### 🏠 Homenet - Internal Network Monitoring (NEW in v1.3.0)
+- **Built-in Speedtest Server** - Python-based server on port 5201 for LAN testing
+- **Device Discovery** - Automatic scanning of network devices via ARP/ping
+- **LAN & WiFi Device Tracking** - Separate charts and stats by connection type
+- **Bufferbloat Analysis** - Idle Ping vs Loaded Ping vs Gateway Ping chart
+- **Device Management** - Name devices, view history, track performance over time
+- **Auto-Registration** - Devices running tests are automatically added
+- **Gateway Ping** - Monitor latency to your router
+- **Live Test Progress** - Real-time waveform visualization during tests
 
 ### 📈 Data Visualization
 - **Interactive Charts** - Time-series graphs with Chart.js
@@ -280,6 +291,7 @@ curl "http://localhost:8000/api/export/csv?start=2025-12-01T00:00:00Z&end=2025-1
 
 ### API Endpoints
 
+#### Internet Monitoring
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Dashboard UI |
@@ -291,6 +303,21 @@ curl "http://localhost:8000/api/export/csv?start=2025-12-01T00:00:00Z&end=2025-1
 | `/api/manual/bufferbloat` | POST | Trigger manual bufferbloat test |
 | `/api/scheduler/config` | GET | Get current scheduler configuration |
 | `/api/scheduler/config` | POST | Save scheduler configuration |
+
+#### Homenet (Internal Network)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/internal/summary` | GET | Internal network stats summary |
+| `/api/internal/measurements` | GET | Internal measurement history |
+| `/api/internal/devices` | GET | List discovered devices |
+| `/api/internal/devices/scan` | POST | Trigger device discovery scan |
+| `/api/internal/devices/<id>` | GET | Get device details with history |
+| `/api/internal/devices/<id>` | PUT | Update device (name, etc.) |
+| `/api/internal/speedtest/stream` | GET | SSE stream for live speedtest |
+| `/api/internal/server/status` | GET | Internal speedtest server status |
+| `/api/internal/server/start` | POST | Start internal speedtest server |
+| `/api/internal/server/stop` | POST | Stop internal speedtest server |
+| `/api/internal/export/csv` | GET | Export internal measurements as CSV |
 
 ## 🔄 Updating
 
@@ -424,6 +451,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📊 Roadmap
 
+- [x] Internal network (Homenet) monitoring
 - [ ] Docker support with docker-compose
 - [ ] Prometheus metrics export
 - [ ] Grafana dashboard templates

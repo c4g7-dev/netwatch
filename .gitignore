@@ -1,4 +1,32 @@
 
 
-#Ignore insiders AI rules
-.github\instructions\codacy.instructions.md
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data (user-specific)
+data/*.db
+data/*.csv
+logs/*.log
+
+# Binaries (downloaded at runtime)
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ignore insiders AI rules
+.github/instructions/codacy.instructions.md
