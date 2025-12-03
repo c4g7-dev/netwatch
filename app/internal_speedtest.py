@@ -207,8 +207,11 @@ class InternalSpeedtestServer:
                 return True
                 
             except OSError as e:
-                if e.errno == 10048:  # Windows: Address already in use
+                import errno
+                if e.errno in (10048, errno.EADDRINUSE):  # Windows: 10048, Linux: 98
                     LOGGER.error(f"Port {self.port} is already in use")
+                elif e.errno == errno.EACCES:  # Permission denied (Linux)
+                    LOGGER.error(f"Permission denied when trying to bind to port {self.port}")
                 else:
                     LOGGER.error(f"Failed to start server: {e}")
                 self._server_socket = None

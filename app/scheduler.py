@@ -35,6 +35,7 @@ class SchedulerService:
     def _load_scheduler_config(self) -> dict:
         """Load scheduler configuration from JSON file."""
         if not self.config_file.exists():
+            LOGGER.debug("Scheduler config file not found at %s, using defaults", self.config_file)
             return {
                 "mode": "simple",
                 "enabled": self.config.scheduler.enabled,
@@ -43,9 +44,22 @@ class SchedulerService:
         
         try:
             with open(self.config_file, "r") as f:
-                return json.load(f)
+                config = json.load(f)
+                LOGGER.debug("Loaded scheduler config from %s: mode=%s", 
+                           self.config_file, config.get("mode", "simple"))
+                return config
+        except PermissionError as exc:
+            LOGGER.error("Permission denied reading scheduler config from %s: %s", 
+                        self.config_file, exc)
+            LOGGER.error("Using default configuration. Check file permissions.")
+            return {
+                "mode": "simple",
+                "enabled": self.config.scheduler.enabled,
+                "interval": self.config.scheduler.interval_minutes
+            }
         except Exception as exc:
-            LOGGER.error("Failed to load scheduler config: %s", exc)
+            LOGGER.error("Failed to load scheduler config from %s: %s", 
+                        self.config_file, exc, exc_info=True)
             return {
                 "mode": "simple",
                 "enabled": self.config.scheduler.enabled,
@@ -127,25 +141,33 @@ class SchedulerService:
 
     def start(self) -> None:
         if self.started:
+            LOGGER.warning("Scheduler already started, ignoring duplicate start request")
             return
         
+        LOGGER.info("Initializing scheduler...")
         sched_config = self._load_scheduler_config()
         
         # Check if scheduler is enabled (for simple mode)
         if sched_config.get("mode") == "simple" and not sched_config.get("enabled", True):
-            LOGGER.info("Scheduler is disabled in configuration")
+            LOGGER.warning("Scheduler is disabled in configuration (simple mode)")
+            LOGGER.info("To enable scheduler, go to the dashboard and toggle the scheduler on")
             return
         
-        interval = self._get_interval_minutes(sched_config)
-        trigger = IntervalTrigger(minutes=interval)
-        self.scheduler.add_job(self._run_cycle, trigger=trigger, id="scheduled-measurements")
-        self.scheduler.start()
-        self.started = True
-        LOGGER.info(
-            "Scheduler started with interval %s minutes (mode: %s)", 
-            interval, 
-            sched_config.get("mode", "simple")
-        )
+        try:
+            interval = self._get_interval_minutes(sched_config)
+            trigger = IntervalTrigger(minutes=interval)
+            self.scheduler.add_job(self._run_cycle, trigger=trigger, id="scheduled-measurements")
+            self.scheduler.start()
+            self.started = True
+            LOGGER.info(
+                "✓ Scheduler started successfully with interval %s minutes (mode: %s)", 
+                interval, 
+                sched_config.get("mode", "simple")
+            )
+        except Exception as exc:
+            LOGGER.error("✗ Failed to start scheduler: %s", exc, exc_info=True)
+            LOGGER.error("  Scheduled measurements will not run automatically")
+            LOGGER.error("  You can still trigger measurements manually from the dashboard")
 
     def shutdown(self) -> None:
         if self.started:

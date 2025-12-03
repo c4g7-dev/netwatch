@@ -49,10 +49,15 @@ def create_web_app(
     internal_exporter = InternalCSVExporter(internal_session_factory, data_dir)
     
     # Auto-start the speedtest server on app startup
+    LOGGER.info("Starting internal speedtest server...")
     if internal_manager.start_server():
-        LOGGER.info("Internal speedtest server started automatically on startup")
+        LOGGER.info("✓ Internal speedtest server started successfully on port 5201")
     else:
-        LOGGER.warning("Failed to auto-start internal speedtest server")
+        LOGGER.error("✗ Failed to start internal speedtest server - check logs for details")
+        LOGGER.error("  The homenet speedtest feature will not be available")
+        LOGGER.error("  Common issues:")
+        LOGGER.error("    - Port 5201 already in use by another service")
+        LOGGER.error("    - Permission denied (check systemd service configuration)")
 
     @app.route("/")
     def index():

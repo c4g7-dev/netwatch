@@ -30,6 +30,10 @@ bufferbloat:
   ping_host: 1.1.1.1
   ping_count: 20
 
+scheduler:
+  enabled: true
+  interval_minutes: 30
+
 web:
   host: 0.0.0.0
   port: 8000
