@@ -66,17 +66,21 @@ echo ""
 # Create installation directory
 echo "Creating installation directory..."
 mkdir -p "$INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"/{data,logs,bin}
 
 # Copy application files
 echo "Copying application files..."
 cp -r . "$INSTALL_DIR/"
+
+# Ensure required directories exist (after copy to guarantee they're present)
+echo "Ensuring required directories exist..."
+mkdir -p "$INSTALL_DIR"/{data,logs,bin}
 
 # Set proper ownership
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 # Ensure data directory is writable
 chmod 755 "$INSTALL_DIR/data"
 chmod 755 "$INSTALL_DIR/logs"
+chmod 755 "$INSTALL_DIR/bin"
 echo -e "${GREEN}✓ Files copied to $INSTALL_DIR${NC}\n"
 
 # Create virtual environment
@@ -113,6 +117,18 @@ cp netwatch.service "$SERVICE_FILE"
 systemctl daemon-reload
 systemctl enable netwatch.service
 echo -e "${GREEN}✓ Systemd service installed${NC}\n"
+
+# Verify required directories exist before starting service
+echo "Verifying installation..."
+if [ ! -d "$INSTALL_DIR/data" ]; then
+    echo -e "${RED}Error: $INSTALL_DIR/data directory does not exist${NC}"
+    exit 1
+fi
+if [ ! -d "$INSTALL_DIR/logs" ]; then
+    echo -e "${RED}Error: $INSTALL_DIR/logs directory does not exist${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Required directories verified${NC}\n"
 
 # Start service
 echo "Starting NetWatch service..."
