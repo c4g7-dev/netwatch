@@ -19,6 +19,7 @@ ENV/
 # Data (user-specific)
 data/*.db
 data/*.csv
+data/*.json
 logs/*.log
 
 # Binaries (downloaded at runtime)

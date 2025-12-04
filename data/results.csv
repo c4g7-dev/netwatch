@@ -1,5 +1,0 @@
-timestamp,type,server,ping_idle_ms,jitter_ms,download_mbps,upload_mbps,ping_during_download_ms,ping_during_upload_ms,download_latency_ms,upload_latency_ms,bytes_used
-2025-12-02T17:31:36,speedtest,Eins Energie in Sachsen GmbH & Co. KG,21.914,2.58,932.154064,51.328184,361.204,28.408,26.712,18.554,1141648493
-2025-12-02T17:32:26,speedtest,Eins Energie in Sachsen GmbH & Co. KG,23.051,5.416,944.75348,53.98512,336.551,29.235,25.07,18.886,1314367117
-2025-12-02T18:01:23,speedtest,EgoPvP Hosting,26.267,1.251,852.0924,52.421824,62.779,28.383,22.329,18.45,880481849
-2025-12-02T18:15:38,speedtest,ThÃ¼ringer Netkom,26.459,3.13,938.223352,53.350184,71.442,27.849,20.223,16.854,1280530981
