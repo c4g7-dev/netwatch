@@ -958,7 +958,19 @@ class InternalNetworkManager:
             yield {"type": "error", "message": str(e)}
     
     def _store_measurement(self, results: Dict[str, Any], device_id: Optional[int] = None):
-        """Store measurement in database."""
+        """Store measurement in database.
+        
+        Only stores if the measurement has actual data (download and upload speeds).
+        This prevents storing empty measurements from failed speedtests.
+        """
+        # Validate that we have actual speedtest data before storing
+        if results.get("download_mbps") is None or results.get("upload_mbps") is None:
+            LOGGER.warning(
+                f"Skipping measurement storage - incomplete data: "
+                f"download={results.get('download_mbps')}, upload={results.get('upload_mbps')}"
+            )
+            return
+        
         LOGGER.info(f"Storing measurement - ping_idle={results.get('ping_idle_ms')}, ping_loaded_dl={results.get('ping_during_download_ms')}, ping_loaded_ul={results.get('ping_during_upload_ms')}")
         with get_internal_session(self.session_factory) as session:
             connection_type = results.get("connection_type")
@@ -985,7 +997,7 @@ class InternalNetworkManager:
                 raw_json=json.dumps(results),
             )
             session.add(measurement)
-            LOGGER.info("Measurement stored successfully")
+            LOGGER.info(f"Measurement stored successfully: download={results['download_mbps']:.1f}Mbps, upload={results['upload_mbps']:.1f}Mbps")
     
     def get_measurements(
         self,
