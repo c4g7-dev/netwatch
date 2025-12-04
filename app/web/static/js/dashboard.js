@@ -1340,13 +1340,15 @@ function updateInternalHistoryCharts() {
     }
   }
   
-  // Internal Latency History Chart (Ping & Jitter)
+  // Internal Latency History Chart (Ping, Jitter, Gateway, Local Latency)
   const latencyCtx = document.getElementById('internal-latency-chart');
   if (latencyCtx) {
     if (internalCharts.latency) {
       internalCharts.latency.data.labels = labels;
       internalCharts.latency.data.datasets[0].data = pingData;
       internalCharts.latency.data.datasets[1].data = jitterData;
+      internalCharts.latency.data.datasets[2].data = gatewayPingData;
+      internalCharts.latency.data.datasets[3].data = localLatencyData;
       internalCharts.latency.update();
     } else {
       internalCharts.latency = new Chart(latencyCtx.getContext('2d'), {
@@ -1367,6 +1369,22 @@ function updateInternalHistoryCharts() {
               borderColor: '#a855f7',
               backgroundColor: 'rgba(168, 85, 247, 0.1)',
               fill: true,
+            },
+            {
+              label: 'Gateway Ping (ms)',
+              data: gatewayPingData,
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.1)',
+              fill: false,
+              borderDash: [5, 5],
+            },
+            {
+              label: 'Local Latency (ms)',
+              data: localLatencyData,
+              borderColor: '#84cc16',
+              backgroundColor: 'rgba(132, 204, 22, 0.1)',
+              fill: false,
+              borderDash: [3, 3],
             },
           ],
         },
@@ -2091,7 +2109,11 @@ function updateDeviceCharts() {
   const lanCtx = document.getElementById('lan-devices-chart');
   if (lanCtx) {
     if (lanDevices.length === 0) {
-      // No LAN devices found
+      // No LAN devices found - destroy chart and show placeholder
+      if (internalCharts.lanDevices) {
+        internalCharts.lanDevices.destroy();
+        internalCharts.lanDevices = null;
+      }
       showChartPlaceholder(lanCtx, 'No LAN devices found');
     } else {
       const labels = lanDevices.map(d => d.friendly_name || d.hostname || d.ip_address);
@@ -2103,7 +2125,11 @@ function updateDeviceCharts() {
                       uploadData.some(v => v !== null && v !== undefined);
       
       if (!hasData) {
-        // Devices exist but no tests run - show placeholder with device names
+        // Devices exist but no tests run - destroy chart and show placeholder with device names
+        if (internalCharts.lanDevices) {
+          internalCharts.lanDevices.destroy();
+          internalCharts.lanDevices = null;
+        }
         showChartPlaceholder(lanCtx, `${lanDevices.length} device(s) - Run tests to see speeds`);
       } else {
         if (internalCharts.lanDevices) {
@@ -2144,6 +2170,11 @@ function updateDeviceCharts() {
   const wifiCtx = document.getElementById('wifi-devices-chart');
   if (wifiCtx) {
     if (wifiDevices.length === 0) {
+      // No WiFi devices found - destroy chart and show placeholder
+      if (internalCharts.wifiDevices) {
+        internalCharts.wifiDevices.destroy();
+        internalCharts.wifiDevices = null;
+      }
       showChartPlaceholder(wifiCtx, 'No WiFi devices found');
     } else {
       const labels = wifiDevices.map(d => d.friendly_name || d.hostname || d.ip_address);
@@ -2154,6 +2185,11 @@ function updateDeviceCharts() {
                       uploadData.some(v => v !== null && v !== undefined);
       
       if (!hasData) {
+        // Devices exist but no tests run - destroy chart and show placeholder with device names
+        if (internalCharts.wifiDevices) {
+          internalCharts.wifiDevices.destroy();
+          internalCharts.wifiDevices = null;
+        }
         showChartPlaceholder(wifiCtx, `${wifiDevices.length} device(s) - Run tests to see speeds`);
       } else {
         if (internalCharts.wifiDevices) {
