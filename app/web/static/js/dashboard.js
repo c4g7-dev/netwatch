@@ -2474,7 +2474,7 @@ function renderDeviceHistoryChart(measurements) {
           callbacks: {
             label: function(context) {
               const value = context.parsed.y;
-              if (value === null || value === undefined) {
+              if (value === null || value === undefined || typeof value !== 'number') {
                 return context.dataset.label + ': —';
               }
               return context.dataset.label + ': ' + value.toFixed(2);

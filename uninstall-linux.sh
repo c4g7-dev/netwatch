@@ -93,8 +93,11 @@ if [ -n "$IPERF_PIDS" ]; then
     echo "Stopping iperf3 processes on port 5201..."
     kill $IPERF_PIDS 2>/dev/null || true
     sleep 1
-    # Force kill if still running
-    kill -9 $IPERF_PIDS 2>/dev/null || true
+    # Force kill if still running - check if processes still exist
+    REMAINING_PIDS=$(pgrep -f "iperf3.*5201" || true)
+    if [ -n "$REMAINING_PIDS" ]; then
+        kill -9 $REMAINING_PIDS 2>/dev/null || true
+    fi
     echo -e "${GREEN}✓ Internal speedtest server stopped${NC}"
 fi
 echo ""
