@@ -1133,6 +1133,7 @@ class InternalNetworkManager:
             total_devices = session.query(Device).filter_by(is_active=True).count()
             lan_devices = session.query(Device).filter_by(is_active=True, connection_type="lan").count()
             wifi_devices = session.query(Device).filter_by(is_active=True, connection_type="wifi").count()
+            unknown_devices = session.query(Device).filter_by(is_active=True, connection_type="unknown").count()
             
             # Total measurements
             total_measurements = session.query(InternalMeasurement).count()
@@ -1143,6 +1144,7 @@ class InternalNetworkManager:
                     "total": total_devices,
                     "lan": lan_devices,
                     "wifi": wifi_devices,
+                    "unknown": unknown_devices,
                 },
                 "total_measurements": total_measurements,
                 "server_status": self.speedtest_server.get_status(),

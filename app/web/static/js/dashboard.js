@@ -1131,9 +1131,15 @@ async function loadInternalSummary() {
     
     const data = await response.json();
     
-    // Update device counts (data.devices contains { total, lan, wifi })
+    // Update device counts (data.devices contains { total, lan, wifi, unknown })
     const devices = data.devices || {};
     document.getElementById('internal-device-count').textContent = devices.total || 0;
+    
+    // Build device count display with all types
+    const lanCount = devices.lan || 0;
+    const wifiCount = devices.wifi || 0;
+    const unknownCount = devices.unknown || 0;
+    
     document.getElementById('lan-count').innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
@@ -1141,8 +1147,15 @@ async function loadInternalSummary() {
         <line x1="6" y1="6" x2="6.01" y2="6"></line>
         <line x1="6" y1="18" x2="6.01" y2="18"></line>
       </svg>
-      ${devices.lan || 0} LAN
+      ${lanCount} LAN
     `;
+    
+    // Build WiFi/Unknown count display - show both if unknown devices exist
+    let wifiDisplay = `${wifiCount} WiFi`;
+    if (unknownCount > 0) {
+      wifiDisplay += ` <span style="opacity: 0.6;">+ ${unknownCount} Unknown</span>`;
+    }
+    
     document.getElementById('wifi-count').innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
@@ -1150,7 +1163,7 @@ async function loadInternalSummary() {
         <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
         <line x1="12" y1="20" x2="12.01" y2="20"></line>
       </svg>
-      ${devices.wifi || 0} WiFi
+      ${wifiDisplay}
     `;
     
     // Update latest metrics if available
@@ -2389,6 +2402,8 @@ function renderDeviceHistoryChart(measurements) {
   const labels = measurements.map(m => new Date(m.timestamp));
   const downloadData = measurements.map(m => m.download_speed);
   const uploadData = measurements.map(m => m.upload_speed);
+  const pingIdleData = measurements.map(m => m.ping_idle_ms || null);
+  const pingLoadedData = measurements.map(m => m.ping_loaded_ms || null);
   
   internalCharts.deviceHistory = new Chart(ctx.getContext('2d'), {
     type: 'line',
@@ -2396,30 +2411,82 @@ function renderDeviceHistoryChart(measurements) {
       labels,
       datasets: [
         {
-          label: 'Download',
+          label: 'Download (Mbps)',
           data: downloadData,
           borderColor: '#22d3ee',
           backgroundColor: 'rgba(34, 211, 238, 0.1)',
           fill: true,
           tension: 0.4,
+          yAxisID: 'y-speed',
         },
         {
-          label: 'Upload',
+          label: 'Upload (Mbps)',
           data: uploadData,
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           fill: true,
           tension: 0.4,
+          yAxisID: 'y-speed',
+        },
+        {
+          label: 'Idle Ping (ms)',
+          data: pingIdleData,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          fill: false,
+          tension: 0.4,
+          yAxisID: 'y-latency',
+          borderWidth: 2,
+        },
+        {
+          label: 'Loaded Ping (ms)',
+          data: pingLoadedData,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          fill: false,
+          tension: 0.4,
+          yAxisID: 'y-latency',
+          borderWidth: 2,
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        intersect: false,
+        mode: 'index',
+      },
       plugins: {
         legend: {
           display: true,
           position: 'top',
+          labels: {
+            usePointStyle: true,
+            padding: 10,
+            font: { size: 11 },
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            /**
+             * Format tooltip label for chart data points
+             * @param {Object} context - Chart.js tooltip context
+             * @param {number|null} context.parsed.y - The Y-axis value
+             * @param {Object} context.dataset - Dataset containing the label
+             * @returns {string} Formatted label string
+             */
+            label: function(context) {
+              const value = context.parsed.y;
+              if (value === null || value === undefined || typeof value !== 'number') {
+                return context.dataset.label + ': —';
+              }
+              return context.dataset.label + ': ' + value.toFixed(2);
+            }
+          }
         }
       },
       scales: {
@@ -2428,9 +2495,33 @@ function renderDeviceHistoryChart(measurements) {
           time: { unit: 'hour' },
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
         },
-        y: {
+        'y-speed': {
+          type: 'linear',
+          position: 'left',
           beginAtZero: true,
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            callback: (value) => `${value} Mbps`
+          },
+          title: {
+            display: true,
+            text: 'Speed (Mbps)',
+            color: 'rgba(255, 255, 255, 0.7)',
+          }
+        },
+        'y-latency': {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: {
+            callback: (value) => `${value} ms`
+          },
+          title: {
+            display: true,
+            text: 'Latency (ms)',
+            color: 'rgba(255, 255, 255, 0.7)',
+          }
         }
       }
     }

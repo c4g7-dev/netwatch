@@ -353,40 +353,52 @@ pip install -r requirements.txt --upgrade
 ### Update Ookla Binary
 ```bash
 python updater.py --component speedtest
-  -p 8000:8000 \
-  -v ./data:/app/data \
-  -v ./config.yaml:/app/config.yaml \
-  c4g7dev/netwatch:latest
 ```
 
-## 🔄 Updating
+## 🗑️ Uninstallation
 
-### Update Ookla Binary
+### Linux (systemd service)
 ```bash
-python updater.py --component speedtest
+cd /opt/netwatch
+sudo bash uninstall-linux.sh
 ```
 
-### Update Application
-```bash
-git pull origin main
-pip install -r requirements.txt --upgrade
-```
+The uninstall script will:
+- ✅ Stop and disable the NetWatch service
+- ✅ Remove systemd service files
+- ✅ Stop internal speedtest server
+- ✅ Optionally remove all data or preserve it for later use
+- ✅ Optionally remove the service user
+
+**Interactive Options:**
+- You'll be asked whether to remove all data (measurements, config, logs)
+- You'll be asked whether to remove the `netwatch` system user
+- Data is backed up to `/tmp` before removal if you choose to preserve it
+
+### Windows / Manual Installation
+Simply delete the NetWatch directory after stopping any running processes.
 
 ## 🛠️ Troubleshooting
 
-### CentOS/RHEL/Fedora
-  sudo dnf install iperf3
+### iperf3 Not Found
+If iperf3 is not available on your system:
+```bash
+# Ubuntu/Debian
+sudo apt install iperf3
+
+# CentOS/RHEL/Fedora
+sudo dnf install iperf3
   
-  # Arch Linux
-  sudo pacman -S iperf3
+# Arch Linux
+sudo pacman -S iperf3
   
-  # Windows
-  # Download from https://iperf.fr/iperf-download.php
-  # Place iperf3.exe in bin/ folder
+# Windows
+# Download from https://iperf.fr/iperf-download.php
+# Place iperf3.exe in bin/ folder
   
-  # macOS
-  brew install iperf3
-  ```
+# macOS
+brew install iperf3
+```
 
 ### Database Locked Errors
 - **Issue:** SQLite database locked
