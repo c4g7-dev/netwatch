@@ -1221,13 +1221,13 @@ function updateInternalHistoryCharts() {
   const pingData = sorted.map(m => m.ping_idle_ms || null);  // Use null for missing to skip points
   const jitterData = sorted.map(m => m.jitter_ms || 0);
   const gatewayPingData = sorted.map(m => m.gateway_ping_ms || null);  // Use null for missing
-  const localLatencyData = sorted.map(m => m.local_latency_ms || 0);
+  const localLatencyData = sorted.map(m => m.local_latency_ms || null);  // Use null for missing
   // Loaded ping: maximum of ping during download or upload (shows bufferbloat)
   const loadedPingData = sorted.map(m => {
     const dlPing = m.ping_during_download_ms;
     const ulPing = m.ping_during_upload_ms;
-    // Return null if both are missing, otherwise max of available values
-    if (!dlPing && !ulPing) return null;
+    // Return null if both are missing or zero, otherwise max of available values
+    if ((!dlPing || dlPing === 0) && (!ulPing || ulPing === 0)) return null;
     return Math.max(dlPing || 0, ulPing || 0);
   });
   
@@ -1289,7 +1289,7 @@ function updateInternalHistoryCharts() {
     },
     elements: {
       point: { radius: 3, hoverRadius: 6, borderWidth: 2 },
-      line: { tension: 0.4, borderWidth: 2 },
+      line: { tension: 0.4, borderWidth: 2, spanGaps: false },
     },
   };
   
