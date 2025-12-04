@@ -186,19 +186,18 @@ class SchedulerService:
                 self.shutdown()
             return
         
-        # If scheduler was shutdown, need to restart it completely
+        # If scheduler was shutdown, need to create a new instance
         if not self.started:
-            # Create a new scheduler instance
             self.scheduler = BackgroundScheduler(timezone="UTC")
             
         try:
-            # Remove existing job if it exists
+            # Remove existing job if scheduler is already running
             if self.started:
                 try:
                     self.scheduler.remove_job("scheduled-measurements")
                     LOGGER.debug("Removed existing scheduled job")
-                except Exception as exc:
-                    LOGGER.debug("No existing job to remove: %s", exc)
+                except LookupError:
+                    LOGGER.debug("No existing job to remove")
             
             # Add job with new interval/trigger
             interval = self._get_interval_minutes(sched_config)
@@ -215,7 +214,7 @@ class SchedulerService:
                 interval, 
                 sched_config.get("mode", "simple")
             )
-        except Exception as exc:
+        except (RuntimeError, ValueError) as exc:
             LOGGER.error("✗ Failed to reconfigure scheduler: %s", exc, exc_info=True)
             LOGGER.error("  Scheduled measurements may not run with the new configuration")
 
