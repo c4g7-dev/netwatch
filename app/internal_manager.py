@@ -523,6 +523,9 @@ class InternalNetworkManager:
             if local_ping:
                 results["local_latency_ms"] = local_ping.get("avg_ms")
                 yield {"event": "metric", "data": {"name": "local_latency", "value": local_ping.get("avg_ms")}}
+                LOGGER.info(f"Local latency: {local_ping.get('avg_ms')}ms to {local_ping.get('gateway')}")
+            else:
+                LOGGER.warning("Local latency measurement returned None - gateway may not be detected or reachable")
             
             yield {"event": "progress", "data": {"percent": 10}}
             
@@ -532,6 +535,9 @@ class InternalNetworkManager:
             if gateway_ping:
                 results["gateway_ping_ms"] = gateway_ping.get("avg_ms")
                 yield {"event": "metric", "data": {"name": "gateway_ping", "value": gateway_ping.get("avg_ms")}}
+                LOGGER.info(f"Gateway ping: {gateway_ping.get('avg_ms')}ms to {gateway_ping.get('gateway')}")
+            else:
+                LOGGER.warning("Gateway ping measurement returned None - gateway may not be reachable")
             
             yield {"event": "progress", "data": {"percent": 15}}
             
@@ -636,6 +642,8 @@ class InternalNetworkManager:
                 results["ping_during_download_ms"] = round(avg_loaded, 2)
                 # Also set upload to same value since we measured continuously
                 results["ping_during_upload_ms"] = round(avg_loaded, 2)
+                # Set the unified ping_loaded_ms field for storage and display
+                results["ping_loaded_ms"] = round(avg_loaded, 2)
                 yield {"event": "metric", "data": {"name": "ping_loaded", "value": results["ping_during_download_ms"]}}
             
             # Phase 5: Calculate grade based on bufferbloat
@@ -702,7 +710,8 @@ class InternalNetworkManager:
         # Get gateway IP
         gateway = self._get_default_gateway()
         if not gateway:
-            gateway = "127.0.0.1"
+            LOGGER.warning("No gateway found for local latency measurement")
+            return None
         
         try:
             if platform.system() == "Windows":
@@ -730,7 +739,10 @@ class InternalNetworkManager:
                     diffs = [abs(times[i+1] - times[i]) for i in range(len(times)-1)]
                     jitter_ms = sum(diffs) / len(diffs)
                 
+                LOGGER.info(f"Local latency to {gateway}: {avg_ms:.2f}ms")
                 return {"avg_ms": avg_ms, "jitter_ms": jitter_ms, "gateway": gateway}
+            else:
+                LOGGER.warning(f"No ping responses from gateway {gateway}")
             
         except Exception as e:
             LOGGER.warning(f"Local latency measurement failed: {e}")
@@ -772,32 +784,89 @@ class InternalNetworkManager:
         return None
     
     def _get_default_gateway(self) -> Optional[str]:
-        """Get the default gateway IP."""
+        """Get the default gateway IP.
+        
+        Tries multiple methods to find the LAN gateway, especially useful
+        when connected via VPN where the default route points to VPN gateway.
+        """
+        gateways = []
+        
         try:
             if platform.system() == "Windows":
                 result = subprocess.run(
                     ["route", "print", "0.0.0.0"],
                     capture_output=True, text=True, timeout=10
                 )
-                # Parse Windows route table
+                # Parse Windows route table - collect all potential gateways
                 for line in result.stdout.split('\n'):
                     if "0.0.0.0" in line:
                         parts = line.split()
                         for part in parts:
                             if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', part):
-                                if part != "0.0.0.0":
-                                    return part
+                                if part != "0.0.0.0" and not part.startswith("255."):
+                                    gateways.append(part)
             else:
+                # Try default route first
                 result = subprocess.run(
                     ["ip", "route", "show", "default"],
                     capture_output=True, text=True, timeout=10
                 )
-                match = re.search(r'via\s+(\d+\.\d+\.\d+\.\d+)', result.stdout)
-                if match:
-                    return match.group(1)
-        except Exception:
-            pass
+                for match in re.finditer(r'via\s+(\d+\.\d+\.\d+\.\d+)', result.stdout):
+                    gateways.append(match.group(1))
+                
+                # Also check for LAN routes (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+                # This helps when VPN has taken over the default route
+                result = subprocess.run(
+                    ["ip", "route", "show"],
+                    capture_output=True, text=True, timeout=10
+                )
+                for line in result.stdout.split('\n'):
+                    # Look for routes to private networks (RFC 1918)
+                    match = re.search(r'via\s+(\d+\.\d+\.\d+\.\d+)', line)
+                    if match:
+                        gateway = match.group(1)
+                        # Check if gateway is in private IP ranges
+                        if (gateway.startswith('192.168.') or 
+                            gateway.startswith('10.') or
+                            (gateway.startswith('172.') and '.' in gateway)):
+                            # Validate 172.16-31.x.x range
+                            parts = gateway.split('.')
+                            if len(parts) >= 2:
+                                try:
+                                    second_octet = int(parts[1])
+                                    if gateway.startswith('172.') and not (16 <= second_octet <= 31):
+                                        continue  # Not in RFC 1918 range
+                                except (ValueError, IndexError):
+                                    continue  # Malformed IP
+                            if gateway not in gateways:
+                                gateways.append(gateway)
+        except Exception as e:
+            LOGGER.debug(f"Gateway detection failed: {e}")
         
+        # Prefer private network gateways over VPN gateways
+        # Check if any gateway is in common private ranges (more likely to be LAN)
+        for gateway in gateways:
+            try:
+                parts = gateway.split('.')
+                if len(parts) != 4:
+                    continue
+                if gateway.startswith('192.168.') or gateway.startswith('10.'):
+                    LOGGER.info(f"Selected LAN gateway: {gateway}")
+                    return gateway
+                if gateway.startswith('172.'):
+                    second_octet = int(parts[1])
+                    if 16 <= second_octet <= 31:
+                        LOGGER.info(f"Selected LAN gateway: {gateway}")
+                        return gateway
+            except (ValueError, IndexError):
+                continue  # Skip malformed IPs
+        
+        # Fall back to first gateway found
+        if gateways:
+            LOGGER.info(f"Selected gateway: {gateways[0]}")
+            return gateways[0]
+        
+        LOGGER.warning("No gateway found")
         return None
     
     def _measure_ping_async(self, target: str = "8.8.8.8", count: int = 5) -> Dict[str, Any]:
