@@ -958,7 +958,22 @@ class InternalNetworkManager:
             yield {"type": "error", "message": str(e)}
     
     def _store_measurement(self, results: Dict[str, Any], device_id: Optional[int] = None):
-        """Store measurement in database."""
+        """Store measurement in database.
+        
+        Only stores if the measurement has actual data (download and upload speeds).
+        This prevents storing empty measurements from failed speedtests.
+        """
+        # Validate that we have actual speedtest data before storing
+        download_mbps = results.get("download_mbps")
+        upload_mbps = results.get("upload_mbps")
+        
+        if download_mbps is None or upload_mbps is None:
+            LOGGER.warning(
+                f"Skipping measurement storage - incomplete data: "
+                f"download={download_mbps}, upload={upload_mbps}"
+            )
+            return
+        
         LOGGER.info(f"Storing measurement - ping_idle={results.get('ping_idle_ms')}, ping_loaded_dl={results.get('ping_during_download_ms')}, ping_loaded_ul={results.get('ping_during_upload_ms')}")
         with get_internal_session(self.session_factory) as session:
             connection_type = results.get("connection_type")
@@ -970,8 +985,8 @@ class InternalNetworkManager:
                 timestamp=datetime.utcnow(),
                 device_id=device_id,  # Can be None if device not resolved
                 connection_type=connection_type or "unknown",
-                download_mbps=results.get("download_mbps"),
-                upload_mbps=results.get("upload_mbps"),
+                download_mbps=download_mbps,
+                upload_mbps=upload_mbps,
                 ping_idle_ms=results.get("ping_idle_ms"),
                 ping_loaded_ms=results.get("ping_loaded_ms"),
                 jitter_ms=results.get("jitter_ms"),
@@ -985,7 +1000,7 @@ class InternalNetworkManager:
                 raw_json=json.dumps(results),
             )
             session.add(measurement)
-            LOGGER.info("Measurement stored successfully")
+            LOGGER.info(f"Measurement stored successfully: download={download_mbps:.1f}Mbps, upload={upload_mbps:.1f}Mbps")
     
     def get_measurements(
         self,
