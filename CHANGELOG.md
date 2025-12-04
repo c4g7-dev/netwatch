@@ -5,6 +5,26 @@ All notable changes to NetWatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2025-01-23
+
+### Changed
+- **Installation Simplification** - Removed automated installer.py (binary installation works directly)
+- **Service Template** - Simplified netwatch.service to user-configurable template with placeholders
+- **Metric Naming Unification** - Split "Loaded Ping" into separate "Download Ping" and "Upload Ping" metrics across both tabs for consistency
+- **Chart Titles** - Renamed "LAN Latency History" to "Jitter & Bufferbloat" and "Bufferbloat (Latency Under Load)" to "Ping Analysis" on Homenet tab
+- **Internet Tab Charts** - Enhanced Jitter & Bufferbloat chart to show Idle/Download/Upload Ping + Jitter (4 datasets) matching Homenet layout
+
+### Added
+- **Documentation** - Added Python symlink command in README for Linux systems with only python3 installed (`sudo ln -s /usr/bin/python3 /usr/bin/python`)
+- **Manual Installation Guide** - Added step-by-step manual installation instructions for Linux and Windows
+- **Chart Data** - Homenet Latency chart now shows 4 datasets: Idle Ping, Download Ping, Upload Ping, and Jitter
+- **Chart Data** - Homenet Bufferbloat chart now shows 4 datasets: Idle Ping, Download Ping, Upload Ping, and Gateway Ping
+
+### Removed
+- **installer.py** - Removed automated installation wizard (no longer needed)
+
+---
+
 ## [1.3.2] - 2025-12-04
 
 ### Fixed
