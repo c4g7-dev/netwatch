@@ -55,7 +55,7 @@
       </div>
       <div class="status-pill">
         <span class="status-dot"></span>
-        <span class="status-text">Scheduler: {{ 'Active' if config.scheduler.enabled else 'Inactive' }} · {{ config.scheduler.interval_minutes }}min interval</span>
+        <span class="status-text">Scheduler: {{ 'Active' if scheduler_config.enabled else 'Inactive' }} · {{ scheduler_config.interval }}min interval</span>
         <button class="scheduler-config-btn" id="open-scheduler-config" type="button" title="Configure Scheduler" aria-label="Configure scheduler">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>

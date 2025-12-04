@@ -21,6 +21,31 @@ from ..internal_manager import InternalNetworkManager, InternalCSVExporter
 
 LOGGER = logging.getLogger(__name__)
 
+# Default scheduler configuration
+DEFAULT_SCHEDULER_CONFIG = {
+    "mode": "simple",
+    "enabled": True,
+    "interval": 30
+}
+
+
+def _load_scheduler_config() -> dict:
+    """Load scheduler configuration from JSON file with fallback to defaults."""
+    config_file = Path("data/scheduler_config.json")
+    if not config_file.exists():
+        return DEFAULT_SCHEDULER_CONFIG.copy()
+    
+    try:
+        with open(config_file, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as exc:
+        LOGGER.warning("Failed to load scheduler config: %s. Using defaults.", exc)
+        return DEFAULT_SCHEDULER_CONFIG.copy()
+    except Exception as exc:
+        LOGGER.error("Unexpected error loading scheduler config: %s. Using defaults.", exc)
+        return DEFAULT_SCHEDULER_CONFIG.copy()
+
+
 
 def create_web_app(
     config: AppConfig,
@@ -61,7 +86,8 @@ def create_web_app(
 
     @app.route("/")
     def index():
-        return render_template("index.html", config=config)
+        scheduler_config = _load_scheduler_config()
+        return render_template("index.html", config=config, scheduler_config=scheduler_config)
 
     @app.get("/api/measurements")
     def api_measurements():
@@ -116,21 +142,7 @@ def create_web_app(
     @app.get("/api/scheduler/config")
     def api_get_scheduler_config():
         """Get current scheduler configuration."""
-        config_file = Path("data/scheduler_config.json")
-        if not config_file.exists():
-            # Return default config
-            return jsonify({
-                "mode": "simple",
-                "enabled": True,
-                "interval": 30
-            })
-        
-        try:
-            with open(config_file, "r") as f:
-                return jsonify(json.load(f))
-        except Exception as e:
-            LOGGER.error(f"Failed to read scheduler config: {e}")
-            return jsonify({"error": "Failed to read configuration"}), 500
+        return jsonify(_load_scheduler_config())
 
     @app.post("/api/scheduler/config")
     def api_save_scheduler_config():
