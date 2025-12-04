@@ -109,8 +109,6 @@ def create_web_app(
     def api_status():
         return jsonify(
             {
-                "scheduler_enabled": config.scheduler.enabled,
-                "scheduler_interval_minutes": config.scheduler.interval_minutes,
                 "auto_download_ookla": config.ookla.auto_download,
             }
         )
@@ -123,8 +121,8 @@ def create_web_app(
             # Return default config
             return jsonify({
                 "mode": "simple",
-                "enabled": config.scheduler.enabled,
-                "interval": config.scheduler.interval_minutes
+                "enabled": True,
+                "interval": 30
             })
         
         try:
@@ -154,6 +152,10 @@ def create_web_app(
                 json.dump(config_data, f, indent=2)
             
             LOGGER.info(f"Scheduler configuration saved: {config_data.get('mode')} mode")
+            
+            # Reload scheduler with new configuration
+            scheduler.reload_config()
+            
             return jsonify({"status": "success", "message": "Configuration saved"})
         except Exception as e:
             LOGGER.error(f"Failed to save scheduler config: {e}")

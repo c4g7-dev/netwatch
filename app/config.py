@@ -17,12 +17,6 @@ class PathsConfig:
 
 
 @dataclass
-class SchedulerConfig:
-    enabled: bool = True
-    interval_minutes: int = 30
-
-
-@dataclass
 class OoklaConfig:
     auto_download: bool = True
     binary_name: str = "speedtest"
@@ -70,7 +64,6 @@ class LoggingConfig:
 class AppConfig:
     root_dir: Path
     paths: PathsConfig
-    scheduler: SchedulerConfig
     ookla: OoklaConfig
     speedtest: SpeedtestConfig
     bufferbloat: BufferbloatConfig
@@ -119,7 +112,6 @@ def load_config(path: Optional[str] = None) -> AppConfig:
     config = AppConfig(
         root_dir=root_dir,
         paths=paths,
-        scheduler=SchedulerConfig(**data.get("scheduler", {})),
         ookla=OoklaConfig(**data.get("ookla", {})),
         speedtest=SpeedtestConfig(**data.get("speedtest", {})),
         bufferbloat=BufferbloatConfig(**data.get("bufferbloat", {})),
