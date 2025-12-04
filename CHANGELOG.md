@@ -5,6 +5,15 @@ All notable changes to NetWatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2025-12-04
+
+### Fixed
+- **Internet Metrics Display** - Reverted v1.3.1 JavaScript changes that caused all metrics to stop displaying on both Internet and Homenet tabs
+- **Delta Calculations** - Added missing `download_latency` and `upload_latency` fields to delta calculation function
+- **Cache Busting** - Updated JavaScript version to v=34 to ensure browsers load the fixed code
+
+---
+
 ## [1.3.1] - 2025-12-04
 
 ### Fixed
