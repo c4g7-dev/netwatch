@@ -20,5 +20,6 @@ class MeasurementResult:
     ping_during_upload_ms: Optional[float]
     download_latency_ms: Optional[float]
     upload_latency_ms: Optional[float]
+    gateway_ping_ms: Optional[float]
     bytes_used: Optional[int]
     raw_json: Dict[str, Any]

@@ -532,7 +532,7 @@ function updateCharts() {
     );
   }
   
-  // Jitter & Bufferbloat Chart (Jitter only - Gateway ping not available for Internet measurements)
+  // Jitter & Bufferbloat Chart (Jitter + Gateway Ping)
   const jitterCtx = document.getElementById('jitter-chart');
   if (jitterCtx) {
     charts.jitter = renderLineChart(
@@ -540,6 +540,13 @@ function updateCharts() {
       jitterCtx.getContext('2d'),
       labels,
       [
+        {
+          label: 'Gateway Ping',
+          data: gatewayPing,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: false,
+        },
         {
           label: 'Jitter',
           data: jitter,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -20,6 +21,56 @@ from ..config import AppConfig
 from .models import MeasurementResult
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _get_default_gateway() -> Optional[str]:
+    """Get default gateway IP address."""
+    try:
+        if platform.system() == "Windows":
+            result = subprocess.run(["route", "print", "0.0.0.0"], capture_output=True, text=True, timeout=5)
+            # Look for default route
+            for line in result.stdout.split('\n'):
+                if '0.0.0.0' in line and '0.0.0.0' in line[:20]:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        gateway = parts[2]
+                        if re.match(r'\d+\.\d+\.\d+\.\d+', gateway):
+                            return gateway
+        else:
+            # Linux/macOS
+            result = subprocess.run(["ip", "route"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.split('\n'):
+                if 'default via' in line:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        return parts[2]
+    except Exception as e:
+        LOGGER.debug(f"Failed to get default gateway: {e}")
+    return None
+
+
+def _ping_gateway(gateway_ip: str) -> Optional[float]:
+    """Ping gateway once and return latency in ms."""
+    try:
+        if platform.system() == "Windows":
+            cmd = ["ping", "-n", "1", "-w", "1000", gateway_ip]
+        else:
+            cmd = ["ping", "-c", "1", "-W", "1", gateway_ip]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+        
+        if result.returncode == 0:
+            # Parse ping time
+            if platform.system() == "Windows":
+                match = re.search(r"time[=<](\d+(?:\.\d+)?)", result.stdout, re.IGNORECASE)
+            else:
+                match = re.search(r"time=(\d+(?:\.\d+)?)", result.stdout, re.IGNORECASE)
+            
+            if match:
+                return float(match.group(1))
+    except Exception as e:
+        LOGGER.debug(f"Failed to ping gateway {gateway_ip}: {e}")
+    return None
 
 
 def _platform_binary_name(config: AppConfig) -> Path:
@@ -151,6 +202,13 @@ def _convert_ookla_payload(data: Dict) -> MeasurementResult:
     download_mbps = _bandwidth_to_mbps(download.get("bandwidth"))
     upload_mbps = _bandwidth_to_mbps(upload.get("bandwidth"))
     bytes_used = (download.get("bytes") or 0) + (upload.get("bytes") or 0)
+    
+    # Measure gateway ping
+    gateway_ping = None
+    gateway_ip = _get_default_gateway()
+    if gateway_ip:
+        gateway_ping = _ping_gateway(gateway_ip)
+        LOGGER.debug(f"Gateway ping to {gateway_ip}: {gateway_ping}ms")
 
     return MeasurementResult(
         measurement_type="speedtest",
@@ -164,6 +222,7 @@ def _convert_ookla_payload(data: Dict) -> MeasurementResult:
         ping_during_upload_ms=_latency_value(upload, "high"),
         download_latency_ms=_latency_value(download, "iqm"),
         upload_latency_ms=_latency_value(upload, "iqm"),
+        gateway_ping_ms=gateway_ping,
         bytes_used=bytes_used,
         raw_json={"source": "ookla", "payload": data},
     )
@@ -176,6 +235,13 @@ def _convert_speedtest_cli_payload(data: Dict) -> MeasurementResult:
 
     timestamp = _parse_timestamp(data.get("timestamp"))
     server = data.get("server", {})
+    
+    # Measure gateway ping
+    gateway_ping = None
+    gateway_ip = _get_default_gateway()
+    if gateway_ip:
+        gateway_ping = _ping_gateway(gateway_ip)
+        LOGGER.debug(f"Gateway ping to {gateway_ip}: {gateway_ping}ms")
 
     return MeasurementResult(
         measurement_type="speedtest-fallback",
@@ -189,6 +255,7 @@ def _convert_speedtest_cli_payload(data: Dict) -> MeasurementResult:
         ping_during_upload_ms=None,
         download_latency_ms=None,
         upload_latency_ms=None,
+        gateway_ping_ms=gateway_ping,
         bytes_used=bytes_used,
         raw_json={"source": "speedtest-cli", "payload": data},
     )

@@ -30,6 +30,7 @@ class Measurement(Base):
     ping_during_upload_ms: Mapped[Optional[float]] = mapped_column(Float)
     download_latency_ms: Mapped[Optional[float]] = mapped_column(Float)
     upload_latency_ms: Mapped[Optional[float]] = mapped_column(Float)
+    gateway_ping_ms: Mapped[Optional[float]] = mapped_column(Float)
     bytes_used: Mapped[Optional[int]] = mapped_column(BigInteger)
     raw_json: Mapped[str] = mapped_column(Text)
 
