@@ -61,7 +61,26 @@ def create_web_app(
 
     @app.route("/")
     def index():
-        return render_template("index.html", config=config)
+        # Load scheduler config for template
+        config_file = Path("data/scheduler_config.json")
+        if not config_file.exists():
+            scheduler_config = {
+                "mode": "simple",
+                "enabled": True,
+                "interval": 30
+            }
+        else:
+            try:
+                with open(config_file, "r") as f:
+                    scheduler_config = json.load(f)
+            except Exception:
+                scheduler_config = {
+                    "mode": "simple",
+                    "enabled": True,
+                    "interval": 30
+                }
+        
+        return render_template("index.html", config=config, scheduler_config=scheduler_config)
 
     @app.get("/api/measurements")
     def api_measurements():
