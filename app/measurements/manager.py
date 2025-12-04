@@ -57,8 +57,11 @@ class MeasurementManager:
         result = run_speedtest_test(self.config)
         return self._persist(result)
 
-    def run_bufferbloat(self) -> Measurement:
+    def run_bufferbloat(self) -> Optional[Measurement]:
         result = run_bufferbloat_test(self.config)
+        if result is None:
+            LOGGER.info("Bufferbloat test skipped (iperf3 not available)")
+            return None
         return self._persist(result)
 
     def get_measurements(

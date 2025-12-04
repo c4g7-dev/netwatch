@@ -98,7 +98,7 @@ A beautiful, self-hosted network performance monitoring dashboard with real-time
 - Python 3.10 or higher
 - pip (Python package manager)
 - Internet connection (for Ookla binary download)
-- **Linux only:** iperf3 (for bufferbloat tests)
+- **Optional:** iperf3 (for bufferbloat tests - not required for homenet tests)
 
 ### Installation
 

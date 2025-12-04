@@ -175,6 +175,48 @@ sudo nano /opt/netwatch/config.yaml
 sudo systemctl restart netwatch
 ```
 
+### Homenet speedtest server won't start (Port 5201 conflict)
+If you see "Port 5201 is already in use" errors in the logs:
+
+```bash
+# Check what's using port 5201
+sudo lsof -i :5201
+
+# Common culprit: iperf3 server running as a separate service
+sudo systemctl stop iperf3
+sudo systemctl disable iperf3  # Prevent auto-start
+
+# Restart NetWatch
+sudo systemctl restart netwatch
+
+# Verify homenet server started
+journalctl -u netwatch -n 50 | grep "Internal speedtest"
+```
+
+**Note:** NetWatch's homenet feature uses its own pure Python speedtest server on port 5201 and does NOT require iperf3 to be installed. If you have a standalone iperf3 server running, it will conflict with NetWatch's internal server.
+
+### Bufferbloat tests failing (iperf3 not found)
+Bufferbloat tests require the `iperf3` binary to be installed and accessible in PATH:
+
+```bash
+# Install iperf3
+sudo apt install iperf3       # Debian/Ubuntu
+sudo yum install iperf3       # CentOS/RHEL
+sudo dnf install iperf3       # Fedora
+
+# Verify iperf3 is accessible
+which iperf3
+iperf3 --version
+
+# Check if netwatch user can run iperf3
+sudo -u netwatch which iperf3
+
+# Restart NetWatch
+sudo systemctl restart netwatch
+```
+
+**Note:** If iperf3 is not installed, the bufferbloat tests will be skipped automatically without crashing the service. You will see warnings in the logs, but internet speedtests and homenet tests will continue to work normally.
+
 ### Python/pip issues
 ```bash
 # Reinstall dependencies
