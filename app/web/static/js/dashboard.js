@@ -1108,16 +1108,15 @@ const internalCharts = {
   deviceHistory: null,
 };
 
-// Helper function to check if a metric value is effectively missing
+// Helper function to check if a metric value is missing (null or undefined)
 function isValueMissing(value) {
-  return value === null || value === undefined || value === 0;
+  return value === null || value === undefined;
 }
 
 // Helper function to destroy a chart if it exists
 function destroyChartIfExists(chartRef) {
   if (chartRef) {
     chartRef.destroy();
-    return null;
   }
   return null;
 }
@@ -1240,7 +1239,7 @@ function updateInternalHistoryCharts() {
   const loadedPingData = sorted.map(m => {
     const dlPing = m.ping_during_download_ms;
     const ulPing = m.ping_during_upload_ms;
-    // Return null if both are missing or zero, otherwise max of available values
+    // Return null if both are missing, otherwise max of available values
     if (isValueMissing(dlPing) && isValueMissing(ulPing)) return null;
     return Math.max(dlPing || 0, ulPing || 0);
   });
