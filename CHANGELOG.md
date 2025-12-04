@@ -5,6 +5,15 @@ All notable changes to NetWatch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-12-04
+
+### Fixed
+- **Gateway Ping & Local Latency Display** - Fixed data mapping issue where Gateway Ping and Local Latency metrics were not displaying in the Homenet tab even when data was available
+- **Device Charts Not Showing Devices** - Fixed issue where LAN/WiFi device charts showed "No devices found" when devices had "unknown" connection type (now included in WiFi/Wireless chart)
+- **Loaded Ping Mapping** - Added proper mapping for loaded ping (ping under load) metric display
+
+---
+
 ## [1.3.0] - 2025-12-03
 
 ### Added - Homenet Feature 🏠
