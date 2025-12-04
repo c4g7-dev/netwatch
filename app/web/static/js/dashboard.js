@@ -1108,6 +1108,20 @@ const internalCharts = {
   deviceHistory: null,
 };
 
+// Helper function to check if a metric value is effectively missing
+function isValueMissing(value) {
+  return value === null || value === undefined || value === 0;
+}
+
+// Helper function to destroy a chart if it exists
+function destroyChartIfExists(chartRef) {
+  if (chartRef) {
+    chartRef.destroy();
+    return null;
+  }
+  return null;
+}
+
 // ============================================================================
 // Internal Network - API Functions
 // ============================================================================
@@ -1227,7 +1241,7 @@ function updateInternalHistoryCharts() {
     const dlPing = m.ping_during_download_ms;
     const ulPing = m.ping_during_upload_ms;
     // Return null if both are missing or zero, otherwise max of available values
-    if ((!dlPing || dlPing === 0) && (!ulPing || ulPing === 0)) return null;
+    if (isValueMissing(dlPing) && isValueMissing(ulPing)) return null;
     return Math.max(dlPing || 0, ulPing || 0);
   });
   
@@ -1384,7 +1398,7 @@ function updateInternalHistoryCharts() {
               borderColor: '#84cc16',
               backgroundColor: 'rgba(132, 204, 22, 0.1)',
               fill: false,
-              borderDash: [3, 3],
+              borderDash: [2, 8],  // More distinct dash pattern
             },
           ],
         },
@@ -2110,10 +2124,7 @@ function updateDeviceCharts() {
   if (lanCtx) {
     if (lanDevices.length === 0) {
       // No LAN devices found - destroy chart and show placeholder
-      if (internalCharts.lanDevices) {
-        internalCharts.lanDevices.destroy();
-        internalCharts.lanDevices = null;
-      }
+      internalCharts.lanDevices = destroyChartIfExists(internalCharts.lanDevices);
       showChartPlaceholder(lanCtx, 'No LAN devices found');
     } else {
       const labels = lanDevices.map(d => d.friendly_name || d.hostname || d.ip_address);
@@ -2126,10 +2137,7 @@ function updateDeviceCharts() {
       
       if (!hasData) {
         // Devices exist but no tests run - destroy chart and show placeholder with device names
-        if (internalCharts.lanDevices) {
-          internalCharts.lanDevices.destroy();
-          internalCharts.lanDevices = null;
-        }
+        internalCharts.lanDevices = destroyChartIfExists(internalCharts.lanDevices);
         showChartPlaceholder(lanCtx, `${lanDevices.length} device(s) - Run tests to see speeds`);
       } else {
         if (internalCharts.lanDevices) {
@@ -2171,10 +2179,7 @@ function updateDeviceCharts() {
   if (wifiCtx) {
     if (wifiDevices.length === 0) {
       // No WiFi devices found - destroy chart and show placeholder
-      if (internalCharts.wifiDevices) {
-        internalCharts.wifiDevices.destroy();
-        internalCharts.wifiDevices = null;
-      }
+      internalCharts.wifiDevices = destroyChartIfExists(internalCharts.wifiDevices);
       showChartPlaceholder(wifiCtx, 'No WiFi devices found');
     } else {
       const labels = wifiDevices.map(d => d.friendly_name || d.hostname || d.ip_address);
@@ -2186,10 +2191,7 @@ function updateDeviceCharts() {
       
       if (!hasData) {
         // Devices exist but no tests run - destroy chart and show placeholder with device names
-        if (internalCharts.wifiDevices) {
-          internalCharts.wifiDevices.destroy();
-          internalCharts.wifiDevices = null;
-        }
+        internalCharts.wifiDevices = destroyChartIfExists(internalCharts.wifiDevices);
         showChartPlaceholder(wifiCtx, `${wifiDevices.length} device(s) - Run tests to see speeds`);
       } else {
         if (internalCharts.wifiDevices) {
