@@ -35,9 +35,11 @@ class PingStats:
     raw_output: str
 
 
-def run_bufferbloat_test(config: AppConfig) -> MeasurementResult:
+def run_bufferbloat_test(config: AppConfig) -> Optional[MeasurementResult]:
     if not shutil.which("iperf3"):
-        raise FileNotFoundError("iperf3 binary is required for bufferbloat tests")
+        LOGGER.warning("iperf3 binary not found in PATH - skipping bufferbloat test")
+        LOGGER.info("To enable bufferbloat tests, install iperf3: 'sudo apt install iperf3' (Linux) or 'brew install iperf3' (macOS)")
+        return None
 
     baseline_ping = _run_ping(config.bufferbloat.ping_host, config.bufferbloat.ping_count)
     download_result, download_ping = _run_iperf_with_ping(config, reverse=True)

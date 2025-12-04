@@ -209,9 +209,18 @@ class InternalSpeedtestServer:
             except OSError as e:
                 import errno
                 if e.errno in (10048, errno.EADDRINUSE):  # Windows: 10048, Linux: 98
-                    LOGGER.error(f"Port {self.port} is already in use")
+                    LOGGER.error(f"Port {self.port} is already in use by another service")
+                    LOGGER.error(f"To fix this issue:")
+                    LOGGER.error(f"  1. Check what's using port {self.port}: 'sudo lsof -i :{self.port}' (Linux) or 'netstat -ano | findstr :{self.port}' (Windows)")
+                    LOGGER.error(f"  2. Stop the conflicting service (e.g., 'sudo systemctl stop iperf3' if it's an iperf3 server)")
+                    LOGGER.error(f"  3. Or configure NetWatch to use a different port in the code")
+                    LOGGER.error(f"Note: The homenet speedtest feature uses a pure Python implementation and does NOT require iperf3")
                 elif e.errno == errno.EACCES:  # Permission denied (Linux)
                     LOGGER.error(f"Permission denied when trying to bind to port {self.port}")
+                    LOGGER.error(f"This can happen if:")
+                    LOGGER.error(f"  1. Port {self.port} requires elevated privileges (ports < 1024 on Linux)")
+                    LOGGER.error(f"  2. SELinux or AppArmor is blocking the port")
+                    LOGGER.error(f"  3. User 'netwatch' doesn't have permission to bind to this port")
                 else:
                     LOGGER.error(f"Failed to start server: {e}")
                 self._server_socket = None
