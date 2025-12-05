@@ -1937,6 +1937,11 @@ input:focus-visible {
   color: var(--accent-blue);
 }
 
+.device-type-icon.vpn {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+}
+
 .device-type-icon svg {
   width: 18px;
   height: 18px;
@@ -2151,4 +2156,62 @@ input:focus-visible {
   .device-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Connection Type Editor */
+.conn-type-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conn-type-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.conn-type-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.conn-type-option.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.conn-type-option svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.conn-type-option span {
+  flex: 1;
+  text-align: left;
+}
+
+/* VPN icon styling in modal */
+.vpn-icon {
+  color: #fb923c;
+}
+
+.lan-icon {
+  color: var(--accent-green);
+}
+
+.wifi-icon {
+  color: var(--accent-blue);
 }

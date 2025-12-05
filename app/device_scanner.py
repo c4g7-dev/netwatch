@@ -25,7 +25,7 @@ class NetworkDevice:
     mac_address: str = ""
     hostname: str = ""
     friendly_name: str = ""
-    connection_type: str = "unknown"  # 'lan', 'wifi', 'unknown'
+    connection_type: str = "unknown"  # 'lan', 'wifi', 'vpn', 'unknown'
     ping_ms: Optional[float] = None
     ping_jitter_ms: Optional[float] = None  # Variance in ping times
     is_online: bool = True
@@ -79,6 +79,18 @@ class DeviceScanner:
         "nas", "server", "switch", "router", "gateway", "printer",
         "desktop", "workstation", "pc-", "-pc", "tower"
     ]
+    
+    # Keywords suggesting VPN clients
+    VPN_HOSTNAME_KEYWORDS = [
+        "vpn", "wireguard", "openvpn", "nordvpn", "expressvpn",
+        "tunnelblick", "client-", "remote-", "wg-", "tun-",
+        "pptp", "l2tp", "ipsec"
+    ]
+    
+    # Virtual MAC address prefixes (often used by VPN interfaces)
+    VPN_MAC_PREFIXES = {
+        "02:", "06:", "0A:", "0E:",  # Locally administered addresses
+    }
     
     def __init__(self, network_prefix: Optional[str] = None):
         """
@@ -278,15 +290,17 @@ class DeviceScanner:
     
     def _classify_connection_type(self, device: NetworkDevice) -> str:
         """
-        Classify device as LAN or WiFi based on multiple heuristics.
+        Classify device as LAN, WiFi, VPN, or unknown based on multiple heuristics.
         
         Uses:
-        1. Ping latency AND jitter (most reliable indicator)
-        2. Hostname keywords
-        3. MAC vendor prefixes (least reliable)
+        1. VPN detection (hostname, MAC patterns, routing indicators)
+        2. Ping latency AND jitter (most reliable indicator)
+        3. Hostname keywords
+        4. MAC vendor prefixes (least reliable)
         
-        LAN characteristics: Low latency (<3ms typically), very low jitter (<0.5ms)
-        WiFi characteristics: Higher latency (3-15ms), higher jitter (>1ms)
+        LAN characteristics: Low latency (<8ms typically), very low jitter (<1.5ms)
+        WiFi characteristics: Higher latency (3-15ms), higher jitter (>1.5ms)
+        VPN characteristics: High latency (>15ms), virtual MAC addresses, specific keywords
         """
         score = 0  # Positive = LAN, Negative = WiFi
         
@@ -294,25 +308,29 @@ class DeviceScanner:
         if device.is_local:
             return "lan" if self._is_local_connection_wired() else "wifi"
         
+        # 0. Check for VPN indicators (highest priority)
+        if self._is_vpn_device(device):
+            return "vpn"
+        
         # 1. Analyze ping latency and jitter (most reliable)
         if device.ping_ms is not None:
-            # Ping latency analysis
+            # More lenient ping latency analysis
             if device.ping_ms < 2:
                 score += 3  # Very likely LAN
-            elif device.ping_ms < 5:
+            elif device.ping_ms < 8:  # Increased from 5ms to be more lenient
                 score += 1  # Probably LAN
-            elif device.ping_ms > 10:
+            elif device.ping_ms > 15:  # Increased from 10ms
                 score -= 2  # Likely WiFi
-            elif device.ping_ms > 20:
+            elif device.ping_ms > 25:  # Increased from 20ms
                 score -= 3  # Very likely WiFi
             
-            # Jitter analysis (WiFi has more jitter)
+            # Jitter analysis (WiFi has more jitter) - more lenient thresholds
             if device.ping_jitter_ms is not None:
-                if device.ping_jitter_ms < 0.3:
+                if device.ping_jitter_ms < 0.5:  # Increased from 0.3ms
                     score += 2  # Very stable = LAN
-                elif device.ping_jitter_ms < 1:
+                elif device.ping_jitter_ms < 1.5:  # Increased from 1ms
                     score += 1  # Stable = probably LAN
-                elif device.ping_jitter_ms > 2:
+                elif device.ping_jitter_ms > 2.5:  # Increased from 2ms
                     score -= 2  # Unstable = likely WiFi
                 elif device.ping_jitter_ms > 5:
                     score -= 3  # Very unstable = very likely WiFi
@@ -334,16 +352,49 @@ class DeviceScanner:
             if prefix in self.WIFI_VENDOR_PREFIXES:
                 score -= 1
         
-        # Determine type based on score
-        if score >= 2:
+        # Determine type based on score (more lenient thresholds)
+        if score >= 1:  # Reduced from 2 to be more lenient
             return "lan"
-        elif score <= -2:
+        elif score <= -1:  # Reduced from -2 to be more lenient
             return "wifi"
         else:
             # Uncertain - default based on ping if available
             if device.ping_ms is not None:
-                return "lan" if device.ping_ms < 5 else "wifi"
-            return "unknown"
+                return "lan" if device.ping_ms < 8 else "wifi"  # Increased from 5ms
+            return "wifi"  # Default to wifi instead of unknown
+    
+    def _is_vpn_device(self, device: NetworkDevice) -> bool:
+        """
+        Detect if device is a VPN client using multiple heuristics.
+        
+        VPN indicators:
+        1. Hostname contains VPN-related keywords
+        2. MAC address has virtual/locally-administered prefix
+        3. Very high latency (>20ms) combined with other factors
+        """
+        # Check hostname for VPN keywords
+        hostname_lower = device.hostname.lower()
+        for keyword in self.VPN_HOSTNAME_KEYWORDS:
+            if keyword in hostname_lower:
+                LOGGER.debug(f"Device {device.ip_address} detected as VPN due to hostname keyword: {keyword}")
+                return True
+        
+        # Check for virtual MAC addresses (locally administered)
+        if device.mac_address:
+            # Check prefixes that indicate locally administered addresses
+            for prefix in self.VPN_MAC_PREFIXES:
+                if device.mac_address.startswith(prefix):
+                    LOGGER.debug(f"Device {device.ip_address} detected as VPN due to virtual MAC prefix: {prefix}")
+                    return True
+        
+        # Check for very high latency combined with stable connection (VPN characteristics)
+        if device.ping_ms is not None and device.ping_jitter_ms is not None:
+            # VPN typically has high base latency but can have low jitter
+            if device.ping_ms > 20 and device.ping_jitter_ms < 3:
+                LOGGER.debug(f"Device {device.ip_address} detected as VPN due to high latency ({device.ping_ms}ms) with low jitter")
+                return True
+        
+        return False
     
     def scan_network(self, ip_range: Optional[List[int]] = None) -> List[NetworkDevice]:
         """
