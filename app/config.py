@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
+import logging
 import platform
 import subprocess
 import yaml
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -100,8 +103,15 @@ class AppConfig:
                     )
                     if "hard" in result.stdout.lower() or "Tag_ABI_VFP_args" in result.stdout:
                         machine = "armhf"
-            except Exception:
-                pass  # Default to armel if detection fails
+            except FileNotFoundError:
+                # readelf not available, default to armel
+                LOGGER.debug("readelf not found, defaulting to armel for armv7")
+            except subprocess.TimeoutExpired:
+                # readelf took too long, default to armel
+                LOGGER.debug("readelf timed out, defaulting to armel for armv7")
+            except Exception as e:
+                # Any other error, default to armel
+                LOGGER.debug(f"Error detecting ARM float type: {e}, defaulting to armel")
         elif machine in ("armv6l", "armv6"):
             machine = "armel"
             
