@@ -7,13 +7,22 @@ paths:
 ookla:
   auto_download: true
   binary_name: speedtest
-  # Platform-specific download URLs can be overridden here.
+  # Platform-specific download URLs for Ookla Speedtest CLI
+  # All supported architectures are included for automatic detection
   urls:
+    # Windows
     windows_x86_64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-win64.zip
+    
+    # Linux - All supported architectures
     linux_x86_64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-x86_64.tgz
+    linux_i386: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-i386.tgz
     linux_aarch64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-aarch64.tgz
+    linux_armel: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armel.tgz
+    linux_armhf: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz
+    
+    # macOS (universal binary works for both Intel and Apple Silicon)
     darwin_x86_64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-macosx-universal.tgz
-    darwin_arm64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-macosx-universal.tgz
+    darwin_aarch64: https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-macosx-universal.tgz
 
 speedtest:
   preferred: ookla

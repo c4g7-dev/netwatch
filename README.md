@@ -94,6 +94,29 @@ A beautiful, self-hosted network performance monitoring dashboard with real-time
 
 ## 🚀 Quick Start
 
+### Supported Architectures
+
+NetWatch automatically detects your system architecture and downloads the appropriate Ookla Speedtest CLI binary. The following architectures are supported:
+
+#### Linux
+- **x86_64** (64-bit Intel/AMD) - Desktop and server systems
+- **i386** (32-bit Intel/AMD) - Legacy 32-bit systems
+- **aarch64 / arm64** (64-bit ARM) - Raspberry Pi 4/5, modern ARM servers
+- **armhf** (32-bit ARM hard float) - Raspberry Pi 2/3, many ARM SBCs
+- **armel** (32-bit ARM soft float) - Older ARM devices, Raspberry Pi 1
+
+#### Windows
+- **x86_64** (64-bit)
+
+#### macOS
+- **x86_64** (Intel Macs)
+- **aarch64** (Apple Silicon M1/M2/M3)
+
+**Check your architecture:**
+```bash
+python3 -c "import platform; print(f'{platform.system().lower()}_{platform.machine().lower()}')"
+```
+
 ### Prerequisites
 - Python 3.10 or higher
 - pip (Python package manager)
@@ -410,6 +433,56 @@ rm -rf /path/to/netwatch
 Simply delete the NetWatch directory after stopping any running processes.
 
 ## 🛠️ Troubleshooting
+
+### Speedtest Fails with "error code none" or Architecture Issues
+
+This typically means your system architecture is not detected or configured properly.
+
+**1. Check your architecture:**
+```bash
+uname -m
+python3 -c "import platform; print(platform.machine())"
+```
+
+**2. Verify configuration:**
+Check that `config.yaml` has a download URL for your platform:
+```bash
+# Your platform key should be one of: linux_x86_64, linux_i386, linux_aarch64, linux_armhf, linux_armel
+python3 -c "from app.config import load_config; c = load_config('config.yaml'); print(c.ookla_platform_key)"
+```
+
+**3. Manual installation option:**
+If auto-download fails, install the Ookla binary manually:
+```bash
+# Download the appropriate binary from https://www.speedtest.net/apps/cli
+# Example for ARM 32-bit hard float (Raspberry Pi 2/3):
+wget https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz
+tar -xzf ookla-speedtest-1.2.0-linux-armhf.tgz
+mv speedtest bin/
+chmod +x bin/speedtest
+
+# Optionally disable auto_download in config.yaml:
+# ookla:
+#   auto_download: false
+```
+
+**4. Architecture-specific notes:**
+
+- **Raspberry Pi 1, Zero, Zero W** (armv6): Use `armel` architecture
+  - Detected as: `linux_armel`
+  
+- **Raspberry Pi 2, 3, 3B+** (armv7): Use `armhf` architecture
+  - Detected as: `linux_armhf` (hard float)
+  
+- **Raspberry Pi 4, 5** (64-bit): Can use either `aarch64` (64-bit OS) or `armhf` (32-bit OS)
+  - 64-bit OS: `linux_aarch64`
+  - 32-bit OS: `linux_armhf`
+
+**5. Fallback option:**
+NetWatch automatically falls back to `speedtest-cli` Python package if Ookla binary fails:
+```bash
+pip install speedtest-cli
+```
 
 ### iperf3 Not Found
 If iperf3 is not available on your system:

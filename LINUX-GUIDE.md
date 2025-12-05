@@ -1,5 +1,33 @@
 # NetWatch - Linux Quick Start Guide
 
+## 🖥️ Supported Linux Architectures
+
+NetWatch automatically detects your architecture and downloads the correct Ookla Speedtest CLI binary:
+
+| Architecture | Common Devices | Platform Key |
+|--------------|----------------|--------------|
+| **x86_64** | Desktop PCs, Servers, Intel/AMD 64-bit | `linux_x86_64` |
+| **i386** | Legacy 32-bit systems | `linux_i386` |
+| **aarch64** | Raspberry Pi 4/5 (64-bit OS), ARM servers | `linux_aarch64` |
+| **armhf** | Raspberry Pi 2/3 (32-bit OS), ARM SBCs | `linux_armhf` |
+| **armel** | Raspberry Pi 1/Zero, older ARM devices | `linux_armel` |
+
+**Check your architecture:**
+```bash
+# Show raw architecture
+uname -m
+
+# Show detected platform key
+python3 -c "import platform; print(f'{platform.system().lower()}_{platform.machine().lower()}')"
+```
+
+**Common architecture mappings:**
+- `x86_64`, `amd64` → `linux_x86_64`
+- `i686`, `i386` → `linux_i386`
+- `aarch64`, `arm64` → `linux_aarch64`
+- `armv7l`, `armv7` → `linux_armhf` (hard float) or `linux_armel` (soft float)
+- `armv6l`, `armv6` → `linux_armel`
+
 ## 🚀 One-Command Installation
 
 ```bash
@@ -146,6 +174,70 @@ sudo firewall-cmd --reload
 ```
 
 ## 🐛 Troubleshooting
+
+### Architecture / Speedtest Binary Issues
+
+If you see errors like:
+- "speedtest failed with error code none"
+- "No Ookla download URL configured for platform"
+- "Missing Ookla CLI binary"
+
+**Step 1: Verify detected architecture**
+```bash
+# Check what NetWatch detects
+sudo -u netwatch /opt/netwatch/.venv/bin/python3 -c "
+from app.config import load_config
+config = load_config('/opt/netwatch/config.yaml')
+print(f'Platform key: {config.ookla_platform_key}')
+print(f'Available URLs: {list(config.ookla.urls.keys())}')
+"
+
+# Check raw system info
+uname -m
+lscpu | grep Architecture
+```
+
+**Step 2: Manual binary installation** (if auto-download fails)
+```bash
+# Determine the correct binary for your architecture:
+# - Raspberry Pi 1/Zero: linux-armel
+# - Raspberry Pi 2/3 (32-bit OS): linux-armhf
+# - Raspberry Pi 4/5 (64-bit OS): linux-aarch64
+# - x86_64 systems: linux-x86_64
+# - 32-bit x86: linux-i386
+
+# Example for Raspberry Pi 3 (armhf):
+cd /opt/netwatch
+sudo -u netwatch wget https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-armhf.tgz
+sudo -u netwatch tar -xzf ookla-speedtest-1.2.0-linux-armhf.tgz -C bin/
+sudo -u netwatch chmod +x bin/speedtest
+sudo rm ookla-speedtest-1.2.0-linux-armhf.tgz
+
+# Restart service
+sudo systemctl restart netwatch
+journalctl -u netwatch -n 20
+```
+
+**Step 3: Verify binary works**
+```bash
+# Test the binary directly
+sudo -u netwatch /opt/netwatch/bin/speedtest --version
+sudo -u netwatch /opt/netwatch/bin/speedtest --accept-license --accept-gdpr --format=json
+```
+
+**Step 4: Check config.yaml has the URL**
+```bash
+sudo nano /opt/netwatch/config.yaml
+# Verify your platform key (e.g., linux_armhf) is listed under ookla.urls
+```
+
+**ARM hard float vs soft float detection:**
+```bash
+# Check if your ARM system uses hard float or soft float
+readelf -A /proc/self/exe | grep -i float
+# If you see "hard" or "Tag_ABI_VFP_args", you need armhf
+# Otherwise, use armel
+```
 
 ### Service won't start
 ```bash

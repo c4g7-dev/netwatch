@@ -96,10 +96,14 @@ def ensure_ookla_binary(config: AppConfig) -> Path:
             f"Missing Ookla CLI binary at {binary_path}. Enable auto_download or install manually."
         )
 
-    url = config.ookla.urls.get(config.ookla_platform_key)
+    platform_key = config.ookla_platform_key
+    LOGGER.info(f"Detected platform: {platform_key}")
+    
+    url = config.ookla.urls.get(platform_key)
     if not url:
         raise ValueError(
-            f"No Ookla download URL configured for platform {config.ookla_platform_key}"
+            f"No Ookla download URL configured for platform {platform_key}. "
+            f"Supported platforms: {list(config.ookla.urls.keys())}"
         )
 
     temp_path = _download_ookla_artifact(url)
