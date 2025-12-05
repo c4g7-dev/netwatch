@@ -2050,27 +2050,43 @@ function renderDeviceTable() {
   emptyState.classList.remove('visible');
   
   const rows = internalState.devices.map(device => {
-    const isLan = device.connection_type === 'lan';
     const displayName = device.friendly_name || device.hostname || 'Unknown';
-    const typeIcon = isLan ? `
-      <div class="device-type-icon lan">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-          <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-          <line x1="6" y1="6" x2="6.01" y2="6"></line>
-          <line x1="6" y1="18" x2="6.01" y2="18"></line>
-        </svg>
-      </div>
-    ` : `
-      <div class="device-type-icon wifi">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-          <line x1="12" y1="20" x2="12.01" y2="20"></line>
-        </svg>
-      </div>
-    `;
+    
+    // Generate icon based on connection type
+    let typeIcon = '';
+    if (device.connection_type === 'lan') {
+      typeIcon = `
+        <div class="device-type-icon lan">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+        </div>
+      `;
+    } else if (device.connection_type === 'vpn') {
+      typeIcon = `
+        <div class="device-type-icon vpn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+      `;
+    } else {
+      // wifi or unknown
+      typeIcon = `
+        <div class="device-type-icon wifi">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>
+        </div>
+      `;
+    }
     
     return `
       <tr data-device-id="${device.id}">
@@ -2092,6 +2108,12 @@ function renderDeviceTable() {
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
           </button>
+          <button class="device-action-btn" onclick="showConnectionTypeEditor(${device.id})" title="Edit Connection Type">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
         </td>
       </tr>
     `;
@@ -2105,7 +2127,10 @@ function renderDeviceTable() {
 // ============================================================================
 function updateDeviceCharts() {
   const lanDevices = internalState.devices.filter(d => d.connection_type === 'lan');
-  const wifiDevices = internalState.devices.filter(d => d.connection_type === 'wifi');
+  // Include unknown devices in WiFi charts as they're likely WiFi
+  const wifiDevices = internalState.devices.filter(d => 
+    d.connection_type === 'wifi' || d.connection_type === 'unknown'
+  );
   
   // LAN Devices Chart
   const lanCtx = document.getElementById('lan-devices-chart');
@@ -2314,6 +2339,12 @@ async function showDeviceDetails(deviceId) {
         <line x1="6" y1="6" x2="6.01" y2="6"></line>
         <line x1="6" y1="18" x2="6.01" y2="18"></line>
       `;
+    } else if (device.connection_type === 'vpn') {
+      iconEl.className = 'vpn-icon';
+      iconEl.innerHTML = `
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      `;
     } else {
       iconEl.className = 'wifi-icon';
       iconEl.innerHTML = `
@@ -2514,6 +2545,127 @@ function closeDeviceModal() {
 function exportInternalCsv() {
   window.location.href = '/api/internal/export/csv';
   showToast('Downloading internal network CSV...', 'success');
+}
+
+// ============================================================================
+// Connection Type Editor
+// ============================================================================
+async function showConnectionTypeEditor(deviceId) {
+  const device = internalState.devices.find(d => d.id === deviceId);
+  if (!device) {
+    showToast('Device not found', 'error');
+    return;
+  }
+  
+  const currentType = device.connection_type || 'unknown';
+  const displayName = device.friendly_name || device.hostname || device.ip_address;
+  
+  // Create modal HTML
+  const modalHtml = `
+    <div class="modal-overlay active" id="conn-type-modal" style="z-index: 10000;">
+      <div class="modal-content glass-card" style="max-width: 400px;">
+        <div class="modal-header">
+          <h2>Edit Connection Type</h2>
+          <button class="modal-close" onclick="closeConnectionTypeEditor()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+          <p style="margin-bottom: 20px; color: rgba(255,255,255,0.7);">
+            Select connection type for <strong>${displayName}</strong>
+          </p>
+          <div class="conn-type-options" style="display: flex; flex-direction: column; gap: 12px;">
+            <button class="conn-type-option ${currentType === 'lan' ? 'active' : ''}" data-type="lan" onclick="setConnectionType(${deviceId}, 'lan')">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+              <span>LAN (Wired)</span>
+            </button>
+            <button class="conn-type-option ${currentType === 'wifi' ? 'active' : ''}" data-type="wifi" onclick="setConnectionType(${deviceId}, 'wifi')">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+              </svg>
+              <span>WiFi (Wireless)</span>
+            </button>
+            <button class="conn-type-option ${currentType === 'vpn' ? 'active' : ''}" data-type="vpn" onclick="setConnectionType(${deviceId}, 'vpn')">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>VPN</span>
+            </button>
+            <button class="conn-type-option ${currentType === 'unknown' ? 'active' : ''}" data-type="unknown" onclick="setConnectionType(${deviceId}, 'unknown')">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <span>Unknown</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add to body
+  const modalContainer = document.createElement('div');
+  modalContainer.innerHTML = modalHtml;
+  document.body.appendChild(modalContainer.firstElementChild);
+  document.body.style.overflow = 'hidden';
+}
+
+function closeConnectionTypeEditor() {
+  const modal = document.getElementById('conn-type-modal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = '';
+  }
+}
+
+async function setConnectionType(deviceId, connectionType) {
+  try {
+    const response = await fetch(`/api/internal/devices/${deviceId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ connection_type: connectionType }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update connection type');
+    }
+    
+    // Update local state
+    const device = internalState.devices.find(d => d.id === deviceId);
+    if (device) {
+      device.connection_type = connectionType;
+    }
+    
+    // Refresh the device table
+    renderDeviceTable();
+    
+    // Close the modal
+    closeConnectionTypeEditor();
+    
+    showToast(`Connection type updated to ${connectionType.toUpperCase()}`, 'success');
+    
+    // Refresh device data
+    await loadDevices();
+  } catch (error) {
+    console.error('Error updating connection type:', error);
+    showToast('Failed to update connection type', 'error');
+  }
 }
 
 // ============================================================================

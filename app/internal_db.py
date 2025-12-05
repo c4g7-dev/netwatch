@@ -24,7 +24,7 @@ class Device(InternalBase):
     ip_address: Mapped[str] = mapped_column(String(45))
     hostname: Mapped[Optional[str]] = mapped_column(String(255))
     friendly_name: Mapped[Optional[str]] = mapped_column(String(255))
-    connection_type: Mapped[str] = mapped_column(String(10), default="unknown")  # 'lan', 'wifi', 'unknown'
+    connection_type: Mapped[str] = mapped_column(String(10), default="unknown")  # 'lan', 'wifi', 'vpn', 'unknown'
     is_local: Mapped[bool] = mapped_column(Boolean, default=False)  # Is this the machine running the server
     first_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -43,7 +43,7 @@ class InternalMeasurement(InternalBase):
     device_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("devices.id"), index=True, nullable=True)
     
     # Connection info
-    connection_type: Mapped[str] = mapped_column(String(10))  # 'lan', 'wifi', 'unknown'
+    connection_type: Mapped[str] = mapped_column(String(10))  # 'lan', 'wifi', 'vpn', 'unknown'
     
     # Speed metrics
     download_mbps: Mapped[Optional[float]] = mapped_column(Float)

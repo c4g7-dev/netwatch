@@ -283,8 +283,26 @@ class InternalNetworkManager:
             return None
     
     def _classify_connection_type(self, ip_address: str) -> str:
-        """Classify device as LAN or WiFi based on ping characteristics."""
+        """
+        Classify device as LAN, WiFi, or VPN based on ping characteristics.
+        More lenient thresholds to reduce 'unknown' classifications.
+        """
         try:
+            # Get hostname for VPN detection
+            hostname = self._get_hostname_for_ip(ip_address) or ""
+            
+            # Check for VPN indicators in hostname
+            vpn_keywords = [
+                "vpn", "wireguard", "openvpn", "nordvpn", "expressvpn",
+                "tunnelblick", "client-", "remote-", "wg-", "tun-",
+                "pptp", "l2tp", "ipsec"
+            ]
+            hostname_lower = hostname.lower()
+            for keyword in vpn_keywords:
+                if keyword in hostname_lower:
+                    LOGGER.debug(f"Device {ip_address} detected as VPN due to hostname: {hostname}")
+                    return "vpn"
+            
             # Do multiple pings and analyze jitter
             if platform.system() == "Windows":
                 cmd = ["ping", "-n", "5", "-w", "1000", ip_address]
@@ -306,17 +324,24 @@ class InternalNetworkManager:
                 diffs = [abs(times[i+1] - times[i]) for i in range(len(times)-1)]
                 jitter = sum(diffs) / len(diffs) if diffs else 0
                 
-                # WiFi typically has higher jitter (>2ms) and higher latency
-                # LAN typically has very low jitter (<1ms) and sub-1ms latency
-                if avg_ping < 1.5 and jitter < 1.0:
+                # VPN detection: high latency with relatively stable connection
+                if avg_ping > 20 and jitter < 3:
+                    LOGGER.debug(f"Device {ip_address} detected as VPN due to latency pattern")
+                    return "vpn"
+                
+                # More lenient LAN/WiFi classification
+                # WiFi typically has higher jitter (>1.5ms) and higher latency
+                # LAN typically has very low jitter (<1.5ms) and low latency (<8ms)
+                if avg_ping < 3.0 and jitter < 1.5:  # More lenient than before
                     return "lan"
-                elif jitter > 2.0 or avg_ping > 5:
+                elif jitter > 1.5 or avg_ping > 8:  # More lenient than before
                     return "wifi"
                 else:
-                    return "unknown"
+                    # Default to wifi for middle range instead of unknown
+                    return "wifi"
         except Exception as e:
             LOGGER.debug(f"Failed to classify connection for {ip_address}: {e}")
-        return "unknown"
+        return "wifi"  # Default to wifi instead of unknown
     
     def _is_local_ip(self, ip_address: str) -> bool:
         """Check if IP belongs to this machine."""
